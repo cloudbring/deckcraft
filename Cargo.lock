@@ -821,6 +821,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-cfb"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#91e0328f63f027086214472d48cfb4909d95a2a6"
+
+[[package]]
 name = "craft-fonts-build"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -1214,6 +1219,7 @@ dependencies = [
 name = "deckcraft-pptx"
 version = "0.15.0"
 dependencies = [
+ "craft-cfb",
  "deckcraft-color",
  "deckcraft-engine",
  "deckcraft-geom",

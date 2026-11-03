@@ -1,103 +1,24 @@
-//! Just enough of the Compound File Binary (CFB/OLE2) container to tell a password-protected
-//! presentation apart: PowerPoint wraps an encrypted `.pptx` in a CFB holding `EncryptionInfo`
-//! and `EncryptedPackage` streams (ECMA-376 / [MS-OFFCRYPTO]) instead of a zip. Every read is
-//! bounds-checked and every loop bounded. Copied from GridCraft's `crates/xlsx/src/cfb.rs`.
+//! Detect password-protected OOXML presentations using the shared CFB reader.
 
-/// The CFB signature at the start of the file.
+use craft_cfb::{Cfb, EntryKind};
+
 const SIGNATURE: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
-
-const END_OF_CHAIN: u32 = 0xFFFF_FFFE;
-/// Sector ids at or above this are markers (free, end of chain, FAT/DIFAT sector), not sectors.
-const MAX_REG_SECT: u32 = 0xFFFF_FFFA;
-/// Directory sectors followed at most (4096 entries with 512-byte sectors).
-const MAX_DIR_SECTORS: usize = 1024;
-/// DIFAT sectors followed at most.
-const MAX_DIFAT_SECTORS: usize = 1024;
-
-/// Stream names that mark an encrypted (password-protected) OOXML package.
 const ENCRYPTED_STREAMS: [&str; 2] = ["EncryptedPackage", "EncryptionInfo"];
 
-fn u16_at(b: &[u8], at: usize) -> Option<u16> {
-    let s = b.get(at..at.checked_add(2)?)?;
-    Some(u16::from_le_bytes([*s.first()?, *s.get(1)?]))
-}
-
-fn u32_at(b: &[u8], at: usize) -> Option<u32> {
-    let s = b.get(at..at.checked_add(4)?)?;
-    Some(u32::from_le_bytes([*s.first()?, *s.get(1)?, *s.get(2)?, *s.get(3)?]))
-}
-
-/// Whether `bytes` is a compound file holding an encryption stream. Walks the directory through
-/// the FAT; when the structure can't be followed (truncated or malformed), falls back to scanning
-/// the bytes for the UTF-16LE stream names.
+/// Require both encryption streams in a valid CFB. Preserve the UTF-16LE marker scan
+/// for malformed containers only, so damaged password-protected files remain recognizable.
 pub(crate) fn is_encrypted(bytes: &[u8]) -> bool {
-    if !bytes.starts_with(&SIGNATURE) {
-        return false;
-    }
-    match directory_names(bytes) {
-        Some(names) => names.iter().any(|n| ENCRYPTED_STREAMS.iter().any(|e| n.eq_ignore_ascii_case(e))),
-        None => ENCRYPTED_STREAMS.iter().any(|e| contains_utf16(bytes, e)),
+    match Cfb::open(bytes) {
+        Ok(cfb) => ENCRYPTED_STREAMS
+            .iter()
+            .all(|name| cfb.entries().any(|entry| entry.kind() == EntryKind::Stream && entry.path().eq_ignore_ascii_case(name))),
+        Err(_) => bytes.starts_with(&SIGNATURE) && ENCRYPTED_STREAMS.iter().any(|name| contains_utf16(bytes, name)),
     }
 }
 
 fn contains_utf16(hay: &[u8], needle: &str) -> bool {
-    let n: Vec<u8> = needle.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    !n.is_empty() && hay.windows(n.len()).any(|w| w == n.as_slice())
-}
-
-/// Names of every directory entry, or `None` when the directory can't be read.
-fn directory_names(b: &[u8]) -> Option<Vec<String>> {
-    if !b.starts_with(&SIGNATURE) {
-        return None;
-    }
-    let shift = u16_at(b, 30)?;
-    if shift != 9 && shift != 12 {
-        return None;
-    }
-    let size = 1usize << shift;
-    let per = size / 4;
-    let sector = |id: u32| -> Option<&[u8]> {
-        let start = (id as usize).checked_add(1)?.checked_mul(size)?;
-        b.get(start..start.checked_add(size)?)
-    };
-    // The DIFAT: the FAT's sector ids, 109 in the header then chained DIFAT sectors.
-    let mut difat: Vec<u32> = (0..109).filter_map(|i| u32_at(b, 76 + i * 4)).filter(|&s| s < MAX_REG_SECT).collect();
-    let mut next = u32_at(b, 68)?;
-    for _ in 0..MAX_DIFAT_SECTORS {
-        if next >= MAX_REG_SECT {
-            break;
-        }
-        let s = sector(next)?;
-        difat.extend((0..per - 1).filter_map(|i| u32_at(s, i * 4)).filter(|&x| x < MAX_REG_SECT));
-        next = u32_at(s, (per - 1) * 4)?;
-    }
-    let fat_next = |id: u32| -> Option<u32> {
-        let idx = id as usize;
-        let fat_sector = *difat.get(idx / per)?;
-        u32_at(sector(fat_sector)?, (idx % per) * 4)
-    };
-    let mut names = Vec::new();
-    let mut id = u32_at(b, 48)?;
-    for _ in 0..MAX_DIR_SECTORS {
-        if id == END_OF_CHAIN {
-            return Some(names);
-        }
-        if id >= MAX_REG_SECT {
-            return None;
-        }
-        let s = sector(id)?;
-        for e in s.as_chunks::<128>().0 {
-            let len = usize::from(u16_at(e, 64)?);
-            if !(2..=64).contains(&len) {
-                continue;
-            }
-            let units: Vec<u16> = (0..(len - 2) / 2).filter_map(|i| u16_at(e, i * 2)).collect();
-            names.push(String::from_utf16_lossy(&units));
-        }
-        id = fat_next(id)?;
-    }
-    // A directory longer than the bound (or a cyclic chain): report what was read.
-    Some(names)
+    let encoded: Vec<u8> = needle.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    !encoded.is_empty() && hay.windows(encoded.len()).any(|window| window == encoded.as_slice())
 }
 
 #[cfg(test)]
@@ -105,6 +26,8 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    const END_OF_CHAIN: u32 = 0xFFFF_FFFE;
 
     /// A minimal valid compound file (512-byte sectors: FAT at sector 0, directory at sector 1)
     /// whose directory holds a root entry plus the given stream names.
@@ -118,6 +41,7 @@ mod tests {
         b[32..34].copy_from_slice(&6u16.to_le_bytes()); // mini sector shift
         b[44..48].copy_from_slice(&1u32.to_le_bytes()); // FAT sectors
         b[48..52].copy_from_slice(&1u32.to_le_bytes()); // first directory sector
+        b[56..60].copy_from_slice(&4096u32.to_le_bytes());
         b[60..64].copy_from_slice(&END_OF_CHAIN.to_le_bytes()); // no mini FAT
         b[68..72].copy_from_slice(&END_OF_CHAIN.to_le_bytes()); // no DIFAT sectors
         for i in 0..109 {
@@ -139,6 +63,14 @@ mod tests {
             }
             b[e + 64..e + 66].copy_from_slice(&((units.len() as u16 + 1) * 2).to_le_bytes());
             b[e + 66] = if k == 0 { 5 } else { 2 };
+            b[e + 67] = 1;
+            b[e + 68..e + 80].fill(0xFF);
+            if k == 0 && !streams.is_empty() {
+                b[e + 76..e + 80].copy_from_slice(&1u32.to_le_bytes());
+            } else if k > 0 && k < streams.len().min(3) {
+                b[e + 72..e + 76].copy_from_slice(&(k as u32 + 1).to_le_bytes());
+            }
+            b[e + 116..e + 120].copy_from_slice(&END_OF_CHAIN.to_le_bytes());
         }
         b
     }
@@ -146,11 +78,44 @@ mod tests {
     #[test]
     fn reads_directory_names() {
         let b = build(&["EncryptionInfo", "EncryptedPackage"]);
-        assert_eq!(directory_names(&b), Some(vec!["Root Entry".into(), "EncryptionInfo".into(), "EncryptedPackage".into()]));
+        let cfb = Cfb::open(&b).unwrap();
+        assert_eq!(cfb.root().kind(), EntryKind::Root);
+        assert_eq!(cfb.entries().map(|entry| entry.path()).collect::<Vec<_>>(), ["", "EncryptionInfo", "EncryptedPackage"]);
         assert!(is_encrypted(&b));
         // A PowerPoint 97-2003 .ppt is a compound file too, without the encryption streams.
         assert!(!is_encrypted(&build(&["PowerPoint Document", "Current User"])));
         assert!(!is_encrypted(b"PK\x03\x04"));
+    }
+
+    #[test]
+    fn valid_containers_require_both_root_streams() {
+        for streams in [&["EncryptionInfo"][..], &["EncryptedPackage"], &["PowerPoint Document"]] {
+            let bytes = build(streams);
+            assert!(Cfb::open(&bytes).is_ok());
+            assert!(!is_encrypted(&bytes));
+        }
+        assert!(is_encrypted(&build(&["encryptioninfo", "encryptedpackage"])));
+        let mut bytes = build(&["EncryptionInfo", "EncryptedPackage"]);
+        bytes[1024 + 128 + 66] = 1;
+        assert!(Cfb::open(&bytes).is_ok());
+        assert!(!is_encrypted(&bytes));
+    }
+
+    #[test]
+    fn malformed_containers_keep_the_marker_scan_fallback() {
+        for name in ENCRYPTED_STREAMS {
+            let mut bytes = SIGNATURE.to_vec();
+            bytes.extend(name.encode_utf16().flat_map(u16::to_le_bytes));
+            assert!(Cfb::open(&bytes).is_err());
+            assert!(is_encrypted(&bytes));
+            bytes[0] = 0;
+            assert!(!is_encrypted(&bytes));
+        }
+        let mut bytes = build(&["PowerPoint Document"]);
+        let marker: Vec<u8> = "EncryptionInfo".encode_utf16().flat_map(u16::to_le_bytes).collect();
+        bytes[512 + 32..512 + 32 + marker.len()].copy_from_slice(&marker);
+        assert!(Cfb::open(&bytes).is_ok());
+        assert!(!is_encrypted(&bytes));
     }
 
     #[test]
