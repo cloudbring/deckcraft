@@ -10,3 +10,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+craft-hash = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

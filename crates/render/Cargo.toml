@@ -9,6 +9,7 @@ description = "DeckCraft renderer: slides, layouts and masters to pixels (vello_
 workspace = true
 
 [dependencies]
+craft-hash = { workspace = true }
 deckcraft-geom = { workspace = true }
 deckcraft-color = { workspace = true }
 deckcraft-metafile = { workspace = true }
@@ -22,6 +23,9 @@ image = { workspace = true }
 log = { workspace = true }
 kurbo = { workspace = true }
 skrifa = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 vello_cpu = { workspace = true, features = ["multithreading"] }

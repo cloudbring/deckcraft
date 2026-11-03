@@ -39,6 +39,8 @@ deckcraft-ogg = { path = "crates/ogg" }
 deckcraft-opus = { path = "crates/opus" }
 
 # foundation
+# TODO: repoint to the shared craft-libs release after integration lands.
+craft-hash = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/integration" }
 kurbo = { version = "0.13", features = ["serde"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive", "rc"] }

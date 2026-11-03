@@ -21,12 +21,9 @@ const KNOWN: &[(&str, &str)] = &[
 const BUILTIN_WRITE: [&str; 3] = ["none", "grid", "medium2-accent1"];
 
 fn fnv(s: &str, seed: u64) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64 ^ seed;
-    for b in s.bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    let mut hash = craft_hash::Fnv64::from_state(craft_hash::Fnv64::OFFSET_BASIS ^ seed);
+    hash.update(s.as_bytes());
+    hash.finish()
 }
 
 /// A stable GUID derived from text (version-4 layout).
@@ -246,6 +243,24 @@ pub fn table_styles_xml(used: &[String], defs: &[deckcraft_model::table::TableSt
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    // Oracle copied from crates/pptx/src/tables.rs before ticket #37.
+    fn old_fnv(s: &str, seed: u64) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325u64 ^ seed;
+        for b in s.bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        h
+    }
+
+    proptest! {
+        #[test]
+        fn fnv_matches_old(text in any::<String>(), seed in any::<u64>()) {
+            prop_assert_eq!(fnv(&text, seed), old_fnv(&text, seed));
+        }
+    }
 
     #[test]
     fn style_parts_follow_schema_order() {

@@ -1,9 +1,34 @@
 //! Synthetic Ogg streams: a small page writer (RFC 3533) and Opus-like packets.
 
+use proptest::prelude::*;
 use std::cell::Cell;
 use std::io;
 
 use super::{ByteSource, CaptureScanner, Codec, Error, OpusTiming, Packet, Stream, crc32, open, opus_packet_samples, sniff};
+
+// Oracle copied from crates/ogg/src/lib.rs before ticket #37.
+fn old_crc32(data: &[u8]) -> u32 {
+    static TABLE: std::sync::OnceLock<[u32; 256]> = std::sync::OnceLock::new();
+    let t = TABLE.get_or_init(|| {
+        let mut t = [0u32; 256];
+        for (i, e) in t.iter_mut().enumerate() {
+            let mut r = (i as u32) << 24;
+            for _ in 0..8 {
+                r = if r & 0x8000_0000 != 0 { (r << 1) ^ 0x04C1_1DB7 } else { r << 1 };
+            }
+            *e = r;
+        }
+        t
+    });
+    data.iter().fold(0u32, |c, &b| (c << 8) ^ t[((c >> 24) as u8 ^ b) as usize])
+}
+
+proptest! {
+    #[test]
+    fn crc_matches_old(data in proptest::collection::vec(any::<u8>(), 0..2048)) {
+        prop_assert_eq!(crc32(&data), old_crc32(&data));
+    }
+}
 
 /// Write one page holding `segments` (lacing already computed by `lace`).
 fn page(out: &mut Vec<u8>, flags: u8, granule: i64, serial: u32, seq: u32, lacing: &[u8], body: &[u8]) {

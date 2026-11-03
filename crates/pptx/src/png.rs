@@ -1,24 +1,6 @@
 //! A minimal PNG encoder for the placeholder image written when a picture's media is missing.
 
-fn crc32(data: &[u8]) -> u32 {
-    let mut c = 0xFFFF_FFFFu32;
-    for b in data {
-        c ^= *b as u32;
-        for _ in 0..8 {
-            c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
-        }
-    }
-    !c
-}
-
-fn adler32(data: &[u8]) -> u32 {
-    let (mut a, mut b) = (1u32, 0u32);
-    for x in data {
-        a = (a + *x as u32) % 65521;
-        b = (b + a) % 65521;
-    }
-    (b << 16) | a
-}
+use craft_hash::{adler32, crc32};
 
 fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -51,6 +33,36 @@ pub fn transparent_1x1() -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
+    // Oracles copied from crates/pptx/src/png.rs before ticket #37.
+    fn old_crc32(data: &[u8]) -> u32 {
+        let mut c = 0xFFFF_FFFFu32;
+        for b in data {
+            c ^= *b as u32;
+            for _ in 0..8 {
+                c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+            }
+        }
+        !c
+    }
+
+    fn old_adler32(data: &[u8]) -> u32 {
+        let (mut a, mut b) = (1u32, 0u32);
+        for x in data {
+            a = (a + *x as u32) % 65521;
+            b = (b + a) % 65521;
+        }
+        (b << 16) | a
+    }
+
+    proptest! {
+        #[test]
+        fn checksums_match_old(data in proptest::collection::vec(any::<u8>(), 0..2048)) {
+            prop_assert_eq!(super::crc32(&data), old_crc32(&data));
+            prop_assert_eq!(super::adler32(&data), old_adler32(&data));
+        }
+    }
     #[test]
     fn crc_known() {
         assert_eq!(super::crc32(b"IEND"), 0xAE42_6082);

@@ -93,20 +93,12 @@ pub fn sniff(head: &[u8]) -> bool {
 }
 
 /// CRC-32 of RFC 3533 §6: polynomial 0x04C11DB7, initial value 0, no reflection, no final XOR.
+/// Four 0xFF bytes transform MPEG-2's all-ones initial register into Ogg's zero register.
 pub fn crc32(data: &[u8]) -> u32 {
-    static TABLE: std::sync::OnceLock<[u32; 256]> = std::sync::OnceLock::new();
-    let t = TABLE.get_or_init(|| {
-        let mut t = [0u32; 256];
-        for (i, e) in t.iter_mut().enumerate() {
-            let mut r = (i as u32) << 24;
-            for _ in 0..8 {
-                r = if r & 0x8000_0000 != 0 { (r << 1) ^ 0x04C1_1DB7 } else { r << 1 };
-            }
-            *e = r;
-        }
-        t
-    });
-    data.iter().fold(0u32, |c, &b| (c << 8) ^ t[((c >> 24) as u8 ^ b) as usize])
+    let mut crc = craft_hash::Crc32Mpeg2::new();
+    crc.update(&[0xff; 4]);
+    crc.update(data);
+    crc.finish()
 }
 
 /// The codec of a logical bitstream (from its first packet).

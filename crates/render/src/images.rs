@@ -242,7 +242,7 @@ pub(crate) fn stamp_png_dpi(png: &[u8], dpi: f64) -> Vec<u8> {
     body.extend_from_slice(&ppm.to_be_bytes());
     body.extend_from_slice(&ppm.to_be_bytes());
     body.push(1);
-    let crc = png_crc(&body);
+    let crc = craft_hash::crc32(&body);
     let mut out = Vec::with_capacity(png.len() + 21);
     out.extend_from_slice(png.get(..end).unwrap_or(png));
     out.extend_from_slice(&9u32.to_be_bytes());
@@ -304,18 +304,6 @@ fn be_u32(bytes: &[u8], i: usize) -> Option<u32> {
     let s = bytes.get(i..i + 4)?;
     let s: [u8; 4] = s.try_into().ok()?;
     Some(u32::from_be_bytes(s))
-}
-
-fn png_crc(data: &[u8]) -> u32 {
-    let mut c = 0xFFFF_FFFFu32;
-    for &b in data {
-        c ^= u32::from(b);
-        for _ in 0..8 {
-            let mask = 0u32.wrapping_sub(c & 1);
-            c = (c >> 1) ^ (0xEDB8_8320 & mask);
-        }
-    }
-    !c
 }
 
 /// A premultiplied pixmap of the picture, downsampled so its longer side is near `want` px.
@@ -527,6 +515,27 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+    use proptest::prelude::*;
+
+    // Oracle copied from crates/render/src/images.rs before ticket #37.
+    fn old_png_crc(data: &[u8]) -> u32 {
+        let mut c = 0xFFFF_FFFFu32;
+        for &b in data {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                let mask = 0u32.wrapping_sub(c & 1);
+                c = (c >> 1) ^ (0xEDB8_8320 & mask);
+            }
+        }
+        !c
+    }
+
+    proptest! {
+        #[test]
+        fn png_crc_matches_old(data in proptest::collection::vec(any::<u8>(), 0..2048)) {
+            prop_assert_eq!(craft_hash::crc32(&data), old_png_crc(&data));
+        }
+    }
 
     fn grey_png(w: u32, h: u32) -> Vec<u8> {
         let img = image::GrayImage::from_pixel(w, h, image::Luma([90]));
