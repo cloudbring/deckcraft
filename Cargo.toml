@@ -29,8 +29,8 @@ deckcraft-ui-egui = { path = "crates/ui-egui" }
 deckcraft-media = { path = "crates/media" }
 # codecs (ported from FilmCraft, same owner and licence)
 # TODO(#48): repoint to storytold/craft-libs once craft-h264 merges
-craft-bitstream = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-craft-h264" }
-craft-h264 = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-craft-h264" }
+craft-bitstream = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-h264-deckcraft-fixes" }
+craft-h264 = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-h264-deckcraft-fixes" }
 deckcraft-video-budget = { path = "crates/video-budget" }
 deckcraft-hevc = { path = "crates/hevc" }
 deckcraft-vp9 = { path = "crates/vp9" }

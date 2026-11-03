@@ -4,6 +4,15 @@ Compared `deckcraft` at the parent of this migration with `cloudbring/craft-libs
 `algo/48-craft-h264` at `935b3523`. Both copies descend from FilmCraft, but the shared
 crate is a later and substantially different implementation. No fork source is retained.
 
+**Step 5 update:** DeckCraft now pins `craft-h264` and `craft-bitstream` to
+`cloudbring/craft-libs` branch `algo/48-h264-deckcraft-fixes` at `e0f337e0`.
+The H.264 hardening and regression coverage identified below now live upstream.
+There are no DeckCraft-side H.264 hardening shims or duplicate regression tests
+to delete: the codec fork was already removed. Keep the MP4/MOV fixture parity
+test in `crates/media/tests/it/decode.rs` and the `deckcraft-video-budget` helper
+for the remaining local codecs. The classifications below describe the original
+comparison with `935b3523`, not the hardened revision.
+
 ## Per-file classification
 
 Five identical files: `cabac.rs`, `cabac_tables.rs`, `cavlc_tables.rs`, `mbtypes.rs`,
@@ -40,6 +49,19 @@ MP4/MOV import, frame decoding, seek, poster PNG, video feed and media-command
 poster generation all use it. The original fork's MP4 and MOV fixture RGBA frame
 hashes, seek hashes and poster-PNG hashes are recorded in the integration test,
 and the shared decoder passes them unchanged. These two fixtures do not exercise
-the hostile-input fixes or large-gap behavior above. Port those fixes and tests
-to the shared crate in a separate craft-libs change before treating #48 as
-fully closed. Do not reintroduce an H.264 fork to paper over them.
+the hostile-input fixes or large-gap behavior above; those cases are now covered
+by regression tests in `craft-h264` at `e0f337e0`. Do not reintroduce an H.264
+fork to paper over them.
+
+## Step 5 validation
+
+- `cargo test` for `deckcraft-media`, `deckcraft-video-budget`, `deckcraft-hevc`,
+  `deckcraft-vp9`, `deckcraft-av1`, `deckcraft-isobmff`, and
+  `deckcraft-matroska`: 101 passed, 0 failed, 0 ignored (including two doctests).
+  The MP4/MOV fixture parity test passes unchanged.
+- Package clippy with `--all-targets -- -D warnings`, `cargo fmt --all -- --check`,
+  and `git diff --check`: passed.
+- `cargo xtask ci` with rustup stable and `CRAFT_FONTS_DIR` pointing to the local
+  craft-fonts checkout: 8/8 gates passed; 2,255 tests passed, 0 failed,
+  5 ignored (unrelated to H.264). The default worktree-relative font path did
+  not contain the checkout and caused a UI glyph test to fail before this retry.
