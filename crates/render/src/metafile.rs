@@ -1,5 +1,5 @@
 //! Windows Metafile and Enhanced Metafile pictures (`image/x-wmf`, `image/x-emf`): parsed by
-//! `deckcraft-metafile` and drawn as vectors into a bitmap of the size the slide needs, so they go
+//! `craft-metafile` and drawn as vectors into a bitmap of the size the slide needs, so they go
 //! through the same crop, tile and recolour path as any other picture.
 //!
 //! Text items name the font the file asks for; they are drawn with the face slide text would use
@@ -10,8 +10,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use craft_metafile::{HAlign, Item, PlacedItem, Text, Tile, VAlign};
 use deckcraft_fonts::{FontDb, FontFace};
-use deckcraft_metafile::{HAlign, Item, PlacedItem, Text, Tile, VAlign};
 use kurbo::{Affine, BezPath, Rect, Shape as _};
 use skrifa::MetadataProvider as _;
 use vello_cpu::{Pixmap, RenderContext, Resources, peniko};
@@ -28,13 +28,13 @@ const DEFAULT_EM: f64 = 12.0;
 
 /// Is `bytes` a WMF or EMF file?
 pub fn is_metafile(bytes: &[u8]) -> bool {
-    deckcraft_metafile::is_metafile(bytes)
+    craft_metafile::is_metafile(bytes)
 }
 
 /// Draw the metafile `bytes` into straight RGBA with its longer side `side` px (transparent where
 /// it draws nothing). `None` when it doesn't parse or has no size.
 pub fn rasterize(bytes: &[u8], side: u32) -> Option<image::RgbaImage> {
-    let mut pic = deckcraft_metafile::parse(bytes).ok()?;
+    let mut pic = craft_metafile::parse(bytes).ok()?;
     if !pic.has_size() {
         return None;
     }

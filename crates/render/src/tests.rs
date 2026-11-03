@@ -1923,6 +1923,15 @@ fn wmf_with(w: i16, h: i16, records: &[(u16, Vec<u8>)]) -> Vec<u8> {
     f
 }
 
+#[test]
+fn metafile_item_cap_rejects_partial_picture() {
+    let rectangle = (0x041B, i16s(&[10, 10, 0, 0]));
+    let records = vec![rectangle; craft_metafile::Limits::default().max_items + 10];
+    let bytes = wmf_with(10, 10, &records);
+    assert_eq!(craft_metafile::parse(&bytes), Err(craft_metafile::Error::LimitExceeded));
+    assert!(crate::metafile::rasterize(&bytes, 32).is_none());
+}
+
 fn i16s(v: &[i32]) -> Vec<u8> {
     v.iter().flat_map(|x| (*x as i16).to_le_bytes()).collect()
 }
