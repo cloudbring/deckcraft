@@ -1,9 +1,11 @@
-//! Memory budget for decoded pictures, shared by the video decoders.
+//! Memory budget for decoded pictures, shared by DeckCraft's local video decoders.
 //!
 //! A per-axis size cap does not bound memory: a decoder holds the current picture, every
-//! reference picture and the pictures still being decoded on worker threads. Each decoder checks
+//! reference picture and the pictures still being decoded on worker threads. The local decoders check
 //! the whole picture store against [`DECODE_MEMORY_BUDGET`] with checked arithmetic before it
 //! allocates for a new picture size, so a hostile header is an error, not an out-of-memory abort.
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+#![forbid(unsafe_code)]
 
 /// Bytes the decoded pictures of one decoder may take: 4 GiB on 64-bit targets, 1 GiB on 32-bit
 /// ones (wasm32 has a 4 GiB address space in all).

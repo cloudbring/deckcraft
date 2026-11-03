@@ -13,7 +13,7 @@ deckcraft-isobmff = { workspace = true }
 deckcraft-matroska = { workspace = true }
 deckcraft-ogg = { workspace = true }
 deckcraft-opus = { workspace = true }
-deckcraft-h264 = { workspace = true }
+craft-h264 = { workspace = true }
 deckcraft-hevc = { workspace = true }
 deckcraft-vp9 = { workspace = true }
 deckcraft-av1 = { workspace = true }

@@ -41,15 +41,15 @@ fn dec_err(e: impl std::fmt::Display) -> MediaError {
 
 struct H264 {
     avcc: Vec<u8>,
-    dec: deckcraft_h264::Decoder,
+    dec: craft_h264::Decoder,
 }
 
 impl H264 {
     fn new(avcc: Vec<u8>) -> Result<H264> {
-        let dec = deckcraft_h264::Decoder::from_avcc(&avcc).map_err(dec_err)?;
+        let dec = craft_h264::Decoder::from_avcc(&avcc).map_err(dec_err)?;
         Ok(H264 { avcc, dec })
     }
-    fn convert(p: deckcraft_h264::Picture) -> Pic {
+    fn convert(p: craft_h264::Picture) -> Pic {
         let (w, h) = (p.width as usize, p.height as usize);
         let planes = Planes {
             y: &p.y,
@@ -77,7 +77,7 @@ impl Codec for H264 {
         self.dec.flush().into_iter().map(H264::convert).collect()
     }
     fn reset(&mut self) {
-        if let Ok(d) = deckcraft_h264::Decoder::from_avcc(&self.avcc) {
+        if let Ok(d) = craft_h264::Decoder::from_avcc(&self.avcc) {
             self.dec = d;
         }
     }

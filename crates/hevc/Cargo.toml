@@ -14,6 +14,7 @@ default = ["threads"]
 threads = ["dep:rayon"]
 
 [dependencies]
-deckcraft-bitstream = { workspace = true }
+craft-bitstream = { workspace = true }
+deckcraft-video-budget = { workspace = true }
 thiserror = { workspace = true }
 rayon = { workspace = true, optional = true }

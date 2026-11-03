@@ -9,6 +9,40 @@ use std::time::Duration;
 
 use deckcraft_media::{Bytes, Container, MediaError, audio, probe, video};
 
+#[test]
+fn h264_fixture_pixels_match_pre_migration() {
+    fn fingerprint(bytes: &[u8]) -> u64 {
+        bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3))
+    }
+
+    for (name, expected_frames, expected_poster, expected_seek) in [
+        (
+            "clip-h264.mp4",
+            &[0xe6340304363baaa1, 0xf52aad5ed576f453, 0x142c2fc4f5116091, 0x060c5646ca12d455, 0xe608c005ec373812][..],
+            0xc4f72b621889179a,
+            0x060c5646ca12d455,
+        ),
+        (
+            "clip-h264.mov",
+            &[0xa678716c18091ef7, 0x57e244802b05bc9b, 0xfe96475a35ee2db5, 0xb501ad854e39d236, 0xce4bdcc61cdac271, 0xdc6b75c37ae78683][..],
+            0xdc81fdd09e04bb04,
+            0xb501ad854e39d236,
+        ),
+    ] {
+        let bytes = fixture(name);
+        let mut decoder = video::VideoDecoder::open(bytes.clone()).unwrap();
+        let mut hashes = Vec::new();
+        while let Some(frame) = decoder.next_frame().unwrap() {
+            hashes.push(fingerprint(&frame.rgba));
+        }
+        assert_eq!(hashes, expected_frames, "{name}: decoded RGBA differs from the original fork");
+        assert_eq!(fingerprint(&video::poster_png(&bytes, 0.0).unwrap()), expected_poster, "{name}: poster PNG differs");
+        decoder.seek(0.35);
+        let seek = decoder.next_frame().unwrap().unwrap();
+        assert_eq!(fingerprint(&seek.rgba), expected_seek, "{name}: seek frame differs");
+    }
+}
+
 fn fixture(name: &str) -> Bytes {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);
     Arc::new(std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display())))
