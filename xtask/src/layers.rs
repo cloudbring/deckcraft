@@ -41,7 +41,6 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ogg", Class::Standalone),
     ("opus", Class::Standalone),
     ("vp9", Class::Layer(1)),
-    ("av1", Class::Layer(1)),
     ("isobmff", Class::Layer(1)),
     ("media", Class::Layer(2)),
     ("color", Class::Layer(0)),

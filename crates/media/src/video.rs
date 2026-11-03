@@ -195,13 +195,13 @@ impl Codec for Vp9 {
 }
 
 struct Av1 {
-    dec: deckcraft_av1::Decoder,
+    dec: craft_av1::Decoder,
     config_obus: Vec<u8>,
     primed: bool,
 }
 
 impl Av1 {
-    fn convert(p: deckcraft_av1::Picture) -> Pic {
+    fn convert(p: craft_av1::Picture) -> Pic {
         let (w, h) = (p.width as usize, p.height as usize);
         let cw = p.plane_width(1) as usize;
         let rgba = yuv::to_rgba(
@@ -239,7 +239,7 @@ impl Codec for Av1 {
         self.dec.flush().into_iter().map(Av1::convert).collect()
     }
     fn reset(&mut self) {
-        self.dec = deckcraft_av1::Decoder::new();
+        self.dec = craft_av1::Decoder::new();
         self.primed = false;
     }
 }
@@ -281,7 +281,7 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
                 CodecConfig::Avc(a) => Box::new(H264::new(a.to_bytes())?),
                 CodecConfig::Hevc(c) => Box::new(Hevc::new(c.to_bytes())?),
                 CodecConfig::Vp9(_) => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
-                CodecConfig::Av1(c) => Box::new(Av1 { dec: deckcraft_av1::Decoder::new(), config_obus: c.config_obus.clone(), primed: false }),
+                CodecConfig::Av1(c) => Box::new(Av1 { dec: craft_av1::Decoder::new(), config_obus: c.config_obus.clone(), primed: false }),
                 other => return Err(MediaError::Unsupported(format!("{} video", codec_name(other)))),
             };
             let (w, h) = entry.video.as_ref().map(|v| (v.width as u32, v.height as u32)).unwrap_or((t.width, t.height));
@@ -302,7 +302,7 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
                 MkvCodec::Hevc { hvcc } => Box::new(Hevc::new(hvcc.clone())?),
                 MkvCodec::Vp9 { .. } => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
                 MkvCodec::Av1 { av1c } => Box::new(Av1 {
-                    dec: deckcraft_av1::Decoder::new(),
+                    dec: craft_av1::Decoder::new(),
                     config_obus: deckcraft_isobmff::Av1Config::parse(av1c).map(|c| c.config_obus).unwrap_or_default(),
                     primed: false,
                 }),

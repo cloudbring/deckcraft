@@ -821,11 +821,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-av1"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+dependencies = [
+ "craft-bitstream",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "craft-bitstream"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
 dependencies = [
- "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc)",
+ "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1)",
 ]
 
 [[package]]
@@ -836,7 +846,7 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 [[package]]
 name = "craft-h264"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -846,7 +856,7 @@ dependencies = [
 [[package]]
 name = "craft-hevc"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -879,7 +889,7 @@ dependencies = [
 [[package]]
 name = "craft-media"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
 dependencies = [
  "thiserror 2.0.21",
 ]
@@ -1050,15 +1060,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deckcraft-av1"
-version = "0.15.0"
-dependencies = [
- "deckcraft-video-budget",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "deckcraft-cli"
 version = "0.15.0"
 dependencies = [
@@ -1160,9 +1161,9 @@ dependencies = [
 name = "deckcraft-media"
 version = "0.15.0"
 dependencies = [
+ "craft-av1",
  "craft-h264",
  "craft-hevc",
- "deckcraft-av1",
  "deckcraft-isobmff",
  "deckcraft-matroska",
  "deckcraft-ogg",

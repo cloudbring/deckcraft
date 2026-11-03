@@ -16,7 +16,7 @@ deckcraft-opus = { workspace = true }
 craft-h264 = { workspace = true }
 craft-hevc = { workspace = true }
 deckcraft-vp9 = { workspace = true }
-deckcraft-av1 = { workspace = true }
+craft-av1 = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 image = { workspace = true }
