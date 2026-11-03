@@ -145,7 +145,12 @@ impl PackageOut {
         if let Some((dir, file)) = name.rsplit_once("/_rels/").or_else(|| name.strip_prefix("_rels/").map(|f| ("", f)))
             && let Some(base) = file.strip_suffix(".rels")
         {
-            let src = if dir.is_empty() { base.into() } else { format!("{dir}/{base}") };
+            // A kept part's sidecar is carried over byte-for-byte; only if the shared writer
+            // rejects it (unsafe target, already-added source) fall back to re-adding its rows.
+            let src = if dir.is_empty() { base.to_string() } else { format!("{dir}/{base}") };
+            if self.0.add_relationships_bytes(&src, data.clone()).is_ok() {
+                return;
+            }
             for r in rels_from_bytes(&data, &src).items {
                 let mode = if r.external { TargetMode::External } else { TargetMode::Internal };
                 let _ = self.0.add_relationship(&src, &r.id, &r.ty, &r.target_raw, mode);
