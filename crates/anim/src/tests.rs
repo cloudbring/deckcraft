@@ -8,8 +8,8 @@ use deckcraft_model::{
 };
 
 use crate::{
-    AnimState, Layer, LinkJump, MotionPath, ShowAction, ShowState, Source, Timeline, TriggerPlay, default_path, ease, morph_crop, morph_frame,
-    morph_pairs, morph_xfrm, show_order, transition_frame, transition_layers,
+    AnimState, Layer, LinkJump, MotionPath, ShowAction, ShowState, Source, Timeline, TriggerPlay, cubic_bezier_y_for_x, default_path, ease,
+    morph_crop, morph_frame, morph_pairs, morph_xfrm, show_order, transition_frame, transition_layers,
 };
 
 const W: f64 = 960.0;
@@ -471,6 +471,74 @@ fn easing_endpoints() {
         assert!(ease(0.5, a, d, b).is_finite());
     }
     assert!(ease(f64::NAN, f64::NAN, f64::NAN, f64::NAN).is_finite());
+}
+
+#[test]
+fn cubic_bezier_matches_bisection_oracle() {
+    fn random(seed: &mut u64) -> f64 {
+        *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        (*seed >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    let mut seed = 90;
+    let mut max_error = 0.0_f64;
+    for index in 0..10_000 {
+        let (x1, y1, x2, y2, x) = match index {
+            0 => (0.0, 0.0, 1.0, 1.0, 0.0),
+            1 => (1.0, 0.0, 0.0, 1.0, 0.5 - 1e-12),
+            2 => (1.0, 0.0, 0.0, 1.0, 0.5 + 1e-12),
+            3 => (0.0, 1.0, 0.0, 1.0, 1e-12),
+            4 => (1.0, 0.0, 1.0, 0.0, 1.0 - 1e-12),
+            5 => (0.0, 1.0, 1.0, 0.0, 0.5),
+            6 => (1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0, 0.5),
+            7 => (0.0, 0.0, 0.0, 1.0, 1e-14),
+            _ => (random(&mut seed), random(&mut seed) * 3.0 - 1.0, random(&mut seed), random(&mut seed) * 3.0 - 1.0, random(&mut seed)),
+        };
+        let sample = |control1: f64, control2: f64, t: f64| {
+            let remaining = 1.0 - t;
+            3.0 * remaining * remaining * t * control1 + 3.0 * remaining * t * t * control2 + t * t * t
+        };
+        let (mut lower, mut upper) = (0.0, 1.0);
+        while upper - lower > 1e-12 {
+            let midpoint = (lower + upper) * 0.5;
+            if sample(x1, x2, midpoint) < x {
+                lower = midpoint;
+            } else {
+                upper = midpoint;
+            }
+        }
+        let expected = sample(y1, y2, (lower + upper) * 0.5);
+        let actual = cubic_bezier_y_for_x(x1, y1, x2, y2, x);
+        let error = (actual - expected).abs();
+        max_error = max_error.max(error);
+        assert!(error <= 1e-6, "case {index}: error {error} at x={x}, curve=({x1}, {y1}, {x2}, {y2})");
+        assert!((cubic_bezier_y_for_x(x1, x1, x2, x2, x) - x).abs() <= 1e-7);
+    }
+    println!("maximum cubic-bezier y error over 10,000 cases: {max_error:e}");
+}
+
+#[test]
+fn cubic_bezier_monotone_with_monotone_y_handles() {
+    for (x1, y1, x2, y2) in [(0.0, 0.0, 1.0, 1.0), (1.0, 1.0, 0.0, 0.0), (0.0, 1.0, 1.0, 0.0), (0.42, 0.0, 0.58, 1.0)] {
+        let mut previous = 0.0;
+        for index in 0..=1000 {
+            let x = index as f64 / 1000.0;
+            let actual = cubic_bezier_y_for_x(x1, y1, x2, y2, x);
+            assert!(actual >= previous - 1e-12, "curve ({x1}, {y1}, {x2}, {y2}) at x={x}");
+            previous = actual;
+        }
+        assert_eq!(previous, 1.0);
+    }
+}
+
+#[test]
+fn cubic_bezier_handles_invalid_and_overshooting_inputs() {
+    assert_eq!(cubic_bezier_y_for_x(f64::NAN, 0.2, 0.8, 1.0, 0.5), 0.5);
+    assert_eq!(cubic_bezier_y_for_x(0.2, f64::INFINITY, 0.8, 1.0, 0.5), 0.5);
+    assert_eq!(cubic_bezier_y_for_x(0.2, 0.0, 0.8, 1.0, f64::NAN), 0.0);
+    assert_eq!(cubic_bezier_y_for_x(0.2, 0.0, 0.8, 1.0, -1.0), 0.0);
+    assert_eq!(cubic_bezier_y_for_x(0.2, 0.0, 0.8, 1.0, 2.0), 1.0);
+    assert!(cubic_bezier_y_for_x(0.5, 2.0, 0.5, 2.0, 0.5) > 1.0);
 }
 
 fn covers_at_end(layers: &[Layer]) -> bool {

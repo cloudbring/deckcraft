@@ -1,10 +1,16 @@
 # Transitions and animations: parity with PowerPoint
 
-> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-10-29 · **Change:** minor (going back in the show reverses the left slide's transition, #1531; previous: minor, Animation Pane ▸ Play From plays from the selected effect; previous: community PR wave 2026-10-14: interactive-deck triggers, canvas preview, the Animation Pane timeline, repeat and bounce end round-trip; duplicated rows and headers folded; previous: major, transitions measured frame by frame against PowerPoint for Windows' video export) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
+> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-11-03 · **Change:** trivial (a cubic-Bezier time inversion API is available without changing PowerPoint's existing easing; previous: minor, going back in the show reverses the left slide's transition, #1531; previous: minor, Animation Pane ▸ Play From plays from the selected effect; previous: community PR wave 2026-10-14: interactive-deck triggers, canvas preview, the Animation Pane timeline, repeat and bounce end round-trip; duplicated rows and headers folded; previous: major, transitions measured frame by frame against PowerPoint for Windows' video export) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
 
 Transitions and animations are what make a deck a presentation, and the part of PowerPoint people
 notice first when it's missing. Scores roll up into [target-app-parity.md](target-app-parity.md)
 (Transitions ~80% ready, Animations ~65%); gaps are in [gaps.md](gaps.md).
+
+`deckcraft-anim::cubic_bezier_y_for_x` inverts a CSS-style time curve with sampled, bracketed
+Newton steps and bisection, with a 1e-7 absolute x tolerance. DeckCraft's PowerPoint accel/decel,
+bounce, and transition easing are separate curves and do not use this API. Four cubic-Bezier
+solvers identified in the ArtCraft family live in separate applications, not four DeckCraft call
+sites; this addition does not change transition frames or parity scores.
 
 ## Transitions: 48 of 48
 

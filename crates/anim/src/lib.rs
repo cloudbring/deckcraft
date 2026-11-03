@@ -35,7 +35,7 @@ mod transition_tests;
 pub use deckcraft_model::Rgba;
 use serde::{Deserialize, Serialize};
 
-pub use easing::ease;
+pub use easing::{cubic_bezier_y_for_x, ease};
 pub use interact::{Click, HitShape, Target};
 pub use mesh::{MeshVertex, layer_mesh};
 pub use morph::{MorphFrame, MorphPath, MorphText, morph_crop, morph_frame, morph_pairs, morph_xfrm};
