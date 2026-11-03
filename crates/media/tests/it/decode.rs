@@ -10,23 +10,36 @@ use std::time::Duration;
 use deckcraft_media::{Bytes, Container, MediaError, audio, probe, video};
 
 #[test]
-fn h264_fixture_pixels_match_pre_migration() {
+fn video_fixture_pixels_match_pre_migration() {
     fn fingerprint(bytes: &[u8]) -> u64 {
         bytes.iter().fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3))
     }
 
-    for (name, expected_frames, expected_poster, expected_seek) in [
+    for (name, expected_frames, expected_posters) in [
         (
             "clip-h264.mp4",
             &[0xe6340304363baaa1, 0xf52aad5ed576f453, 0x142c2fc4f5116091, 0x060c5646ca12d455, 0xe608c005ec373812][..],
-            0xc4f72b621889179a,
-            0x060c5646ca12d455,
+            &[0xc4f72b621889179a, 0x4b309eb17887feda, 0xabdbceb7f6fef33f, 0x32010847087c7ffc, 0xaca9876189a8442c][..],
         ),
         (
             "clip-h264.mov",
             &[0xa678716c18091ef7, 0x57e244802b05bc9b, 0xfe96475a35ee2db5, 0xb501ad854e39d236, 0xce4bdcc61cdac271, 0xdc6b75c37ae78683][..],
-            0xdc81fdd09e04bb04,
-            0xb501ad854e39d236,
+            &[0xdc81fdd09e04bb04, 0x226725323bce1307, 0x749241e56809bcae, 0x5590354bec0fa9a4, 0xc332f4e17b7403b9, 0x094d3e47af9940a1][..],
+        ),
+        (
+            "clip-hevc.mp4",
+            &[0x2be97232e6bc8654, 0xb45963815df0bfae, 0x7a415e37992896c2, 0x87f510a5ee77b38e, 0x345b635e6d16e1fd, 0xd035f399b71d1612][..],
+            &[0xbca06533b3be7f39, 0x17479996a26e4048, 0x4f690246949f23a6, 0x7c3aa68dd9052aae, 0xb2c7c840e771e027, 0x3dc9d2d17dc85be0][..],
+        ),
+        (
+            "clip-vp9.webm",
+            &[0xe003dd60e8109828, 0xecea0b7aa81bc88e, 0x2aec0262fbe19d46, 0x25bccce12e214d0a, 0x25f70d6f8cea7906][..],
+            &[0x3beb1e4082fa3742, 0x444099b0f9784beb, 0x8dd003a7e1aa42fa, 0x0bf6b15f02e6c7b1, 0x021f866a9793fdea][..],
+        ),
+        (
+            "clip-av1.mkv",
+            &[0x8289e858f2b9fe7d, 0x8d92a6a10a8fdb19, 0x979490f2c22650ba, 0x3e29c83590ea92b4, 0xa134f1ba8c76d4a0, 0xbfcb02b403c285ef][..],
+            &[0x29ae8e7680312ca6, 0xc026e38d0e93fc71, 0x52d2b3d5fda098d6, 0x983ee6cbb0b793db, 0xef1fc037bd9bc7d2, 0x4c8635a4cc64c962][..],
         ),
     ] {
         let bytes = fixture(name);
@@ -36,10 +49,14 @@ fn h264_fixture_pixels_match_pre_migration() {
             hashes.push(fingerprint(&frame.rgba));
         }
         assert_eq!(hashes, expected_frames, "{name}: decoded RGBA differs from the original fork");
-        assert_eq!(fingerprint(&video::poster_png(&bytes, 0.0).unwrap()), expected_poster, "{name}: poster PNG differs");
-        decoder.seek(0.35);
-        let seek = decoder.next_frame().unwrap().unwrap();
-        assert_eq!(fingerprint(&seek.rgba), expected_seek, "{name}: seek frame differs");
+        assert_eq!(fingerprint(&video::poster_png(&bytes, 0.0).unwrap()), expected_posters[0], "{name}: initial poster PNG differs");
+        for index in (0..expected_frames.len()).rev() {
+            let time = index as f64 * 0.1 + 0.05;
+            decoder.seek(time);
+            let seek = decoder.next_frame().unwrap().unwrap();
+            assert_eq!(fingerprint(&seek.rgba), expected_frames[index], "{name}: seek frame {index} differs");
+            assert_eq!(fingerprint(&video::poster_png(&bytes, time).unwrap()), expected_posters[index], "{name}: poster PNG {index} differs");
+        }
     }
 }
 
@@ -314,6 +331,11 @@ fn h264_mov() {
 #[test]
 fn hevc_mp4() {
     check_video("clip-hevc.mp4", 64, 48, 6, "HEVC");
+}
+
+#[test]
+fn vp8_fixture_remains_unsupported() {
+    assert!(matches!(video::VideoDecoder::open(fixture("clip-vp8.webm")), Err(MediaError::Unsupported(message)) if message == "VP8 video"));
 }
 
 #[test]

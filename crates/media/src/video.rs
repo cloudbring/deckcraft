@@ -120,19 +120,19 @@ macro_rules! plane_pic {
 
 struct Hevc {
     hvcc: Vec<u8>,
-    dec: deckcraft_hevc::Decoder,
+    dec: craft_hevc::Decoder,
 }
 
 impl Hevc {
     fn new(hvcc: Vec<u8>) -> Result<Hevc> {
-        let dec = deckcraft_hevc::Decoder::from_hvcc(&hvcc).map_err(dec_err)?;
+        let dec = craft_hevc::Decoder::from_hvcc(&hvcc).map_err(dec_err)?;
         Ok(Hevc { hvcc, dec })
     }
-    fn convert(p: deckcraft_hevc::Picture) -> Pic {
+    fn convert(p: craft_hevc::Picture) -> Pic {
         let sx = u32::from(p.chroma_width < p.width);
         let sy = u32::from(p.chroma_height < p.height);
         let m = Matrix::from_code(p.color.matrix, p.height);
-        plane_pic!(&p, deckcraft_hevc::Plane, sx, sy, m, p.color.full_range, p.chroma_width == 0)
+        plane_pic!(&p, craft_hevc::Plane, sx, sy, m, p.color.full_range, p.chroma_width == 0)
     }
 }
 
@@ -144,7 +144,7 @@ impl Codec for Hevc {
         self.dec.flush().into_iter().map(Hevc::convert).collect()
     }
     fn reset(&mut self) {
-        if let Ok(d) = deckcraft_hevc::Decoder::from_hvcc(&self.hvcc) {
+        if let Ok(d) = craft_hevc::Decoder::from_hvcc(&self.hvcc) {
             self.dec = d;
         }
     }

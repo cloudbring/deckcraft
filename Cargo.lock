@@ -823,9 +823,9 @@ dependencies = [
 [[package]]
 name = "craft-bitstream"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-h264#935b3523ef56b00f97ff6bba4b989108e3a51a33"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
 dependencies = [
- "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-h264)",
+ "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc)",
 ]
 
 [[package]]
@@ -836,7 +836,17 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 [[package]]
 name = "craft-h264"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-h264#935b3523ef56b00f97ff6bba4b989108e3a51a33"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
+dependencies = [
+ "craft-bitstream",
+ "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "craft-hevc"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -869,7 +879,7 @@ dependencies = [
 [[package]]
 name = "craft-media"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-h264#935b3523ef56b00f97ff6bba4b989108e3a51a33"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-hevc#00fbb685e7b10e37717adee3c7285705b2b3de9f"
 dependencies = [
  "thiserror 2.0.21",
 ]
@@ -1123,16 +1133,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deckcraft-hevc"
-version = "0.15.0"
-dependencies = [
- "craft-bitstream",
- "deckcraft-video-budget",
- "rayon",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "deckcraft-isobmff"
 version = "0.15.0"
 dependencies = [
@@ -1161,8 +1161,8 @@ name = "deckcraft-media"
 version = "0.15.0"
 dependencies = [
  "craft-h264",
+ "craft-hevc",
  "deckcraft-av1",
- "deckcraft-hevc",
  "deckcraft-isobmff",
  "deckcraft-matroska",
  "deckcraft-ogg",
