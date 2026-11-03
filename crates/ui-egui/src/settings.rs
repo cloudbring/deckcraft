@@ -1,5 +1,6 @@
-//! The desktop app's settings files, `ui.json` ([`UiState`]) and `prefs.json`
-//! ([`deckcraft_engine::Prefs`]), in the per-user settings folder. They are files on disk that a
+//! The desktop app's settings files, `ui.json` ([`UiState`]) and `config.toml`
+//! ([`deckcraft_engine::Prefs`]), in the per-user settings folder. Legacy `prefs.json` is imported
+//! when `config.toml` does not exist and left in place for older versions. They are files on disk that a
 //! crash, a full disk or a hand edit can leave damaged, so reading never fails and never trusts
 //! them: an unreadable, oversized or malformed file gives the defaults, and the values of a
 //! well-formed one are brought into range ([`UiState::sanitized`], `Prefs::sanitized`). Writing
@@ -10,6 +11,41 @@ use std::path::Path;
 use deckcraft_engine::Prefs;
 
 use crate::UiState;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct StoredPrefs {
+    prefs: Option<Prefs>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl craft_settings::Settings for StoredPrefs {
+    const APP_ID: &'static str = "deckcraft";
+    const SCHEMA_VERSION: u32 = 1;
+    const PORTABLE_MARKERS: &'static [&'static str] = &[];
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_prefs(dir: &Path) -> craft_settings::SettingsStore<StoredPrefs> {
+    let legacy_path = dir.join(PREFS_FILE);
+    let valid_legacy = std::fs::metadata(&legacy_path).is_ok_and(|metadata| metadata.is_file() && metadata.len() <= MAX_BYTES);
+    let legacy = craft_settings::LegacyFile {
+        path: legacy_path,
+        parse: |bytes| {
+            if bytes.len() as u64 > MAX_BYTES {
+                return Err("settings file is too large".into());
+            }
+            serde_json::from_slice::<Prefs>(bytes).map(|prefs| StoredPrefs { prefs: Some(prefs.sanitized()) }).map_err(|error| error.to_string())
+        },
+    };
+    craft_settings::SettingsStore::open_with(craft_settings::OpenOptions::new(craft_settings::Location::Dir(dir.into())).legacy(if valid_legacy {
+        vec![legacy]
+    } else {
+        Vec::new()
+    }))
+    .0
+}
 
 pub const UI_FILE: &str = "ui.json";
 pub const PREFS_FILE: &str = "prefs.json";
@@ -35,7 +71,11 @@ fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Option<T> {
 
 /// The saved UI state and preferences in `dir` (each `None` when missing or unusable).
 pub fn load(dir: &Path) -> (Option<UiState>, Option<Prefs>) {
-    (read::<UiState>(&dir.join(UI_FILE)).map(UiState::sanitized), read::<Prefs>(&dir.join(PREFS_FILE)).map(Prefs::sanitized))
+    #[cfg(not(target_arch = "wasm32"))]
+    let prefs = open_prefs(dir).get().prefs.clone().map(Prefs::sanitized);
+    #[cfg(target_arch = "wasm32")]
+    let prefs = read::<Prefs>(&dir.join(PREFS_FILE)).map(Prefs::sanitized);
+    (read::<UiState>(&dir.join(UI_FILE)).map(UiState::sanitized), prefs)
 }
 
 /// Write `bytes` to `path` through a temporary file beside it.
@@ -53,7 +93,19 @@ pub fn save(dir: &Path, ui: &UiState, prefs: &Prefs) {
         log::warn!("{}: {e}; settings not saved", dir.display());
         return;
     }
-    for (name, json) in [(UI_FILE, serde_json::to_vec_pretty(ui)), (PREFS_FILE, serde_json::to_vec_pretty(prefs))] {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut store = open_prefs(dir);
+        store.set(StoredPrefs { prefs: Some(prefs.clone()) });
+        if let Err(error) = store.flush() {
+            log::warn!("{}: {error}", dir.display());
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    let files = vec![(UI_FILE, serde_json::to_vec_pretty(ui)), (PREFS_FILE, serde_json::to_vec_pretty(prefs))];
+    #[cfg(not(target_arch = "wasm32"))]
+    let files = vec![(UI_FILE, serde_json::to_vec_pretty(ui))];
+    for (name, json) in files {
         let path = dir.join(name);
         if let Err(e) = json.map_err(std::io::Error::other).and_then(|b| write_atomic(&path, &b)) {
             log::warn!("{}: {e}", path.display());
@@ -71,6 +123,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn legacy_json_preferences_migrate_without_changing_values() {
+        let d = dir("legacy");
+        let json = r#"{"author":"Existing user","gridSpacing":12.5,"units":"centimeters","acEntries":[["teh","the"]]}"#;
+        std::fs::write(d.join(PREFS_FILE), json).unwrap();
+        let expected = serde_json::from_str::<Prefs>(json).unwrap().sanitized();
+        assert_eq!(load(&d).1, Some(expected.clone()));
+        save(&d, &UiState::default(), &expected);
+        assert_eq!(std::fs::read_to_string(d.join(PREFS_FILE)).unwrap(), json);
+        assert!(d.join("config.toml").is_file());
+        assert_eq!(load(&d).1, Some(expected));
     }
 
     #[test]

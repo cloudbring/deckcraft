@@ -329,7 +329,7 @@ pub fn shapes_mut<'a>(doc: &'a mut Presentation, sel: &Selection) -> Option<&'a 
 }
 
 /// Engine preferences (the UI keeps its own).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Prefs {
     pub snap_to_grid: bool,

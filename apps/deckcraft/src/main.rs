@@ -66,17 +66,67 @@ impl eframe::App for App {
     }
 }
 
-/// The per-user settings directory: `ui.json`, `prefs.json` and `logs/` live here.
+/// The per-user settings directory: `ui.json`, `config.toml` and `logs/` live here.
 fn config_dir() -> Option<std::path::PathBuf> {
-    if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Library/Application Support/DeckCraft"))
-    } else if cfg!(windows) {
-        std::env::var_os("APPDATA").map(|a| std::path::PathBuf::from(a).join("DeckCraft"))
+    config_dir_with(
+        if cfg!(target_os = "macos") {
+            "macos"
+        } else if cfg!(windows) {
+            "windows"
+        } else {
+            "unix"
+        },
+        |key| std::env::var_os(key),
+    )
+}
+
+fn config_dir_with(platform: &str, env: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<std::path::PathBuf> {
+    let (name, base) = if platform == "macos" {
+        ("DeckCraft", env("HOME").map(|home| std::path::PathBuf::from(home).join("Library/Application Support")))
+    } else if platform == "windows" {
+        ("DeckCraft", env("APPDATA").map(std::path::PathBuf::from))
     } else {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(std::path::PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))
-            .map(|c| c.join("deckcraft"))
+        (
+            "deckcraft",
+            env("XDG_CONFIG_HOME").map(std::path::PathBuf::from).or_else(|| env("HOME").map(|home| std::path::PathBuf::from(home).join(".config"))),
+        )
+    };
+    let probe = craft_settings::Probe { env: Box::new(|_| None), exe_dir: None, platform_config_dir: Some(base?) };
+    craft_settings::paths::resolve(name, &craft_settings::Portable { markers: &[], dir: "config" }, &craft_settings::Location::Auto, &probe).dir
+}
+
+#[cfg(test)]
+mod config_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn platform_paths_preserve_old_environment_rules() {
+        let env = |key: &str| match key {
+            "HOME" => Some("/home/example".into()),
+            "APPDATA" => Some("C:/Users/example/AppData/Roaming".into()),
+            "XDG_CONFIG_HOME" => Some("relative-config".into()),
+            _ => None,
+        };
+        assert_eq!(config_dir_with("macos", env), Some("/home/example/Library/Application Support/DeckCraft".into()));
+        assert_eq!(config_dir_with("windows", env), Some("C:/Users/example/AppData/Roaming/DeckCraft".into()));
+        assert_eq!(config_dir_with("unix", env), Some("relative-config/deckcraft".into()));
+        assert_eq!(config_dir_with("unix", |key| (key == "HOME").then(|| "/home/example".into())), Some("/home/example/.config/deckcraft".into()));
+        assert_eq!(config_dir_with("unix", |_| None), None);
+    }
+
+    #[test]
+    fn portable_marker_does_not_change_config_location() {
+        let root = std::env::temp_dir().join(format!("deckcraft-portable-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let portable = craft_settings::Portable { markers: &[], dir: "config" };
+        let probe = craft_settings::Probe { env: Box::new(|_| None), exe_dir: Some(root.clone()), platform_config_dir: Some(root.join("user")) };
+        let resolve = || craft_settings::paths::resolve("deckcraft", &portable, &craft_settings::Location::Auto, &probe).dir;
+        let expected = Some(root.join("user/deckcraft"));
+        assert_eq!(resolve(), expected);
+        std::fs::write(root.join("portable"), "").unwrap();
+        assert_eq!(resolve(), expected);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
 

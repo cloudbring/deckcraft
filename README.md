@@ -135,13 +135,16 @@ emerge --ask app-office/deckcraft-bin
 ### Logs
 
 The desktop app writes its `log` records to standard error and to `logs/deckcraft.log` in the
-settings directory, beside `ui.json` and `prefs.json` (Linux `~/.config/deckcraft/logs/`, or
+settings directory, beside `ui.json` and `config.toml` (Linux `~/.config/deckcraft/logs/`, or
 `$XDG_CONFIG_HOME/deckcraft/logs/`; macOS `~/Library/Application Support/DeckCraft/logs/`; Windows
 `%APPDATA%\DeckCraft\logs\`). A start from a desktop menu or the Dock has no terminal, so this file
 is what to attach to a bug report: the crash guard's panic report, a failed crash-recovery save,
 Parts skipped on import and audio output problems land there. Each launch moves the
 previous log to `deckcraft.1.log` (and that one to `deckcraft.2.log`), so the log of a run that
 crashed survives the next start. The file stops growing at 16 MiB. `--version` writes no file.
+
+Older `prefs.json` settings are imported into `config.toml` on the next save. The original JSON
+file remains in the same directory for older DeckCraft versions; subsequent saves update TOML only.
 
 | Variable | Effect |
 |---|---|
