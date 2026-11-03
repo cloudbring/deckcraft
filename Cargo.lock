@@ -821,6 +821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-atomic"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
+dependencies = [
+ "rustix 1.1.5",
+]
+
+[[package]]
 name = "craft-fonts-build"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -1051,6 +1059,7 @@ name = "deckcraft-engine"
 version = "0.15.0"
 dependencies = [
  "chrono",
+ "craft-atomic",
  "deckcraft-anim",
  "deckcraft-color",
  "deckcraft-fonts",
@@ -1263,6 +1272,7 @@ dependencies = [
 name = "deckcraft-ui-egui"
 version = "0.15.0"
 dependencies = [
+ "craft-atomic",
  "craft-ui",
  "craft-update",
  "deckcraft-anim",
@@ -6179,6 +6189,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 name = "xtask"
 version = "0.15.0"
 dependencies = [
+ "craft-atomic",
  "serde_json",
 ]
 

@@ -26,6 +26,7 @@ thiserror = { workspace = true }
 log = { workspace = true }
 image = { workspace = true }
 chrono = { workspace = true }
+craft-atomic = { workspace = true }
 
 [dev-dependencies]
 deckcraft-anim = { workspace = true }

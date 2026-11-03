@@ -3,7 +3,7 @@
 //! crash, a full disk or a hand edit can leave damaged, so reading never fails and never trusts
 //! them: an unreadable, oversized or malformed file gives the defaults, and the values of a
 //! well-formed one are brought into range ([`UiState::sanitized`], `Prefs::sanitized`). Writing
-//! goes through a temporary file and a rename, so a crash mid-write leaves the old file.
+//! uses atomic replacement, so a crash leaves either the old or new file.
 
 use std::path::Path;
 
@@ -40,11 +40,16 @@ pub fn load(dir: &Path) -> (Option<UiState>, Option<Prefs>) {
 
 /// Write `bytes` to `path` through a temporary file beside it.
 fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path).inspect_err(|_| {
-        let _ = std::fs::remove_file(&tmp);
-    })
+    write_atomic_with(&craft_atomic::RealFs, path, bytes)
+}
+
+fn write_atomic_with(fs: &dyn craft_atomic::AtomicFs, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    craft_atomic::WriteOptions::default().with_new_file_permissions(craft_atomic::NewFilePermissions::Private).atomic_write_custom(
+        fs,
+        craft_atomic::RenameRetry::platform(),
+        path,
+        bytes,
+    )
 }
 
 /// Save both files into `dir` (created when missing). Failures are logged, not fatal.
@@ -139,6 +144,73 @@ mod tests {
         // A settings folder that is a file: nothing saved, no panic.
         std::fs::write(d.join("blocked"), "file").unwrap();
         save(&d.join("blocked"), &ui, &prefs);
+    }
+
+    #[test]
+    fn prefs_faults_leave_old_or_new_complete() {
+        use craft_atomic::{AtomicFs, NewFilePermissions, RealFs};
+        use std::fs::{File, Permissions};
+        use std::io;
+
+        struct Fault(&'static str);
+        impl AtomicFs for Fault {
+            fn create_new(&self, path: &Path, permissions: NewFilePermissions) -> io::Result<File> {
+                RealFs.create_new(path, permissions)
+            }
+            fn sync(&self, file: &File) -> io::Result<()> {
+                if self.0 == "sync" { Err(io::Error::other("injected sync failure")) } else { RealFs.sync(file) }
+            }
+            fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+                if self.0 == "rename" { Err(io::Error::other("injected rename failure")) } else { RealFs.rename(from, to) }
+            }
+            fn hard_link(&self, from: &Path, to: &Path) -> io::Result<()> {
+                RealFs.hard_link(from, to)
+            }
+            fn remove(&self, path: &Path) -> io::Result<()> {
+                RealFs.remove(path)
+            }
+            fn sync_dir(&self, dir: &Path) -> io::Result<()> {
+                if self.0 == "dir" { Err(io::Error::other("injected directory sync failure")) } else { RealFs.sync_dir(dir) }
+            }
+            fn set_permissions(&self, file: &File, permissions: Permissions) -> io::Result<()> {
+                RealFs.set_permissions(file, permissions)
+            }
+        }
+
+        let d = dir("faults");
+        let path = d.join(PREFS_FILE);
+        let old = serde_json::to_vec(&Prefs { author: "old".into(), ..Default::default() }).unwrap();
+        let new = serde_json::to_vec(&Prefs { author: "new".into(), ..Default::default() }).unwrap();
+        for fault in ["sync", "rename", "dir"] {
+            std::fs::write(&path, &old).unwrap();
+            let result = write_atomic_with(&Fault(fault), &path, &new);
+            let actual = std::fs::read(&path).unwrap();
+            assert!(actual == old || actual == new, "{fault}");
+            assert_eq!(&actual, if fault == "dir" { &new } else { &old });
+            assert_eq!(result.is_ok(), fault == "dir");
+            assert!(load(&d).1.is_some());
+        }
+    }
+
+    #[test]
+    fn concurrent_saves_leave_complete_prefs() {
+        let d = dir("concurrent");
+        std::thread::scope(|scope| {
+            for index in 0..8 {
+                let d = &d;
+                scope.spawn(move || {
+                    let prefs = Prefs { author: format!("author-{index}"), ..Default::default() };
+                    let bytes = serde_json::to_vec(&prefs).unwrap();
+                    for _ in 0..10 {
+                        write_atomic(&d.join(PREFS_FILE), &bytes).unwrap();
+                    }
+                });
+            }
+        });
+        let prefs = load(&d).1.unwrap();
+        assert!((0..8).any(|index| prefs.author == format!("author-{index}")));
+        let names: Vec<_> = std::fs::read_dir(&d).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+        assert_eq!(names.len(), 1, "{names:?}");
     }
 
     /// The window opens with the worst `ui.json` values once they are sanitized; a zoom of

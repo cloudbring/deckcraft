@@ -86,11 +86,7 @@ pub fn run(root: &Path, args: &[&str]) -> Result<(), String> {
         ["set", new] => {
             let old = read(&text)?;
             let updated = replace(&text, new)?;
-            // Write atomically: a half-written root manifest breaks every build in the workspace.
-            let tmp = root.join("target").join("Cargo.toml.xtask-version");
-            std::fs::create_dir_all(root.join("target")).map_err(|e| format!("create target/: {e}"))?;
-            std::fs::write(&tmp, updated).map_err(|e| format!("write {}: {e}", tmp.display()))?;
-            std::fs::rename(&tmp, &path).map_err(|e| format!("replace {}: {e}", path.display()))?;
+            craft_atomic::atomic_write(&path, updated.as_bytes()).map_err(|e| format!("replace {}: {e}", path.display()))?;
             // Refresh the workspace members' entries in Cargo.lock (no dependency upgrades).
             let mut c = crate::cargo();
             c.args(["update", "--workspace", "--offline"]);

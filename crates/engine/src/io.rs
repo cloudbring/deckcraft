@@ -31,39 +31,8 @@ pub fn read_file(path: &str) -> Result<Vec<u8>, String> {
 /// `path` is.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
     crate::file_access::check_write(path)?;
-    let err = |e: std::io::Error| format!("{path}: {e}");
-
-    let target_path = match std::fs::canonicalize(path) {
-        Ok(canonical) => canonical,
-        Err(_) => std::path::PathBuf::from(path),
-    };
-    let target_str = target_path.to_str().unwrap_or(path);
-    let existing_perms = std::fs::metadata(&target_path).ok().map(|m| m.permissions());
-
-    let mut attempts = 0;
-    let (tmp, mut file) = loop {
-        let tmp = format!("{target_str}.{}.{}.saving", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed));
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
-            Ok(f) => break (tmp, f),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && attempts < 16 => attempts += 1,
-            Err(e) => return Err(err(e)),
-        }
-    };
-    if let Some(perms) = existing_perms {
-        let _ = file.set_permissions(perms);
-    }
-    let written = file.write_all(bytes).and_then(|()| file.sync_all());
-    drop(file);
-    let result = written.and_then(|()| std::fs::rename(&tmp, &target_path));
-    if let Err(e) = result {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(err(e));
-    }
-    Ok(())
+    craft_atomic::atomic_write(std::path::Path::new(path), bytes).map_err(|e| format!("{path}: {e}"))
 }
 
 #[cfg(target_arch = "wasm32")]
