@@ -13,6 +13,7 @@ fn a_failed_accept_waits_before_the_next() {
 }
 use std::net::SocketAddr;
 use std::time::Instant;
+const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn small() -> Limits {
     Limits {
@@ -28,13 +29,56 @@ fn small() -> Limits {
 fn server(limits: Limits) -> (SocketAddr, Receiver<ControlRequest>) {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = l.local_addr().unwrap();
-    (addr, serve_listener(l, limits, egui::Context::default()))
+    (addr, serve_listener(l, limits, egui::Context::default(), TOKEN.to_string()))
 }
 
-fn client(addr: SocketAddr) -> (BufReader<TcpStream>, TcpStream) {
+fn raw_client(addr: SocketAddr) -> (BufReader<TcpStream>, TcpStream) {
     let s = TcpStream::connect(addr).unwrap();
     s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
     (BufReader::new(s.try_clone().unwrap()), s)
+}
+
+fn client(addr: SocketAddr) -> (BufReader<TcpStream>, TcpStream) {
+    let (mut reader, mut writer) = raw_client(addr);
+    writeln!(writer, "{}", json!({"id":0,"method":"auth","params":{"token":TOKEN}})).unwrap();
+    assert_eq!(reply(&mut reader).unwrap()["ok"], true);
+    (reader, writer)
+}
+
+#[test]
+fn unauthenticated_side_effect_is_not_dispatched() {
+    let (addr, rx) = server(small());
+    let (mut reader, mut writer) = raw_client(addr);
+    writeln!(writer, "{}", json!({"id":1,"method":"app.open","params":{"path":"example.pptx"}})).unwrap();
+    assert_eq!(reply(&mut reader).unwrap()["ok"], false);
+    assert!(rx.try_recv().is_err());
+}
+
+#[test]
+fn wrong_token_is_rejected() {
+    let (addr, rx) = server(small());
+    let (mut reader, mut writer) = raw_client(addr);
+    writeln!(writer, "{}", json!({"id":1,"method":"auth","params":{"token":"f".repeat(64)}})).unwrap();
+    assert_eq!(reply(&mut reader).unwrap()["ok"], false);
+    assert!(rx.try_recv().is_err());
+}
+
+#[test]
+fn correct_token_allows_dispatch() {
+    let (addr, rx) = server(small());
+    ui(rx);
+    let (mut reader, mut writer) = client(addr);
+    writeln!(writer, "{}", json!({"id":1,"method":"app.open"})).unwrap();
+    assert_eq!(reply(&mut reader).unwrap()["result"], "app.open");
+}
+
+#[test]
+fn mcp_client_authenticates_before_dispatch() {
+    use deckcraft_mcp::Backend;
+    let (addr, rx) = server(small());
+    ui(rx);
+    let mut remote = deckcraft_mcp::Remote::connect_with_token(&addr.to_string(), TOKEN.into()).unwrap();
+    assert_eq!(remote.call("app.open", json!({})).unwrap(), "app.open");
 }
 
 fn reply(r: &mut BufReader<TcpStream>) -> Option<Value> {
@@ -140,7 +184,7 @@ fn a_pipelined_peer_refused_as_busy_still_reads_why() {
     writeln!(hw, r#"{{"id":1,"method":"m"}}"#).unwrap();
     assert!(reply(&mut hr).is_some());
     for _ in 0..50 {
-        let (mut r, mut w) = client(addr);
+        let (mut r, mut w) = raw_client(addr);
         let _ = w.write_all(b"{\"id\":2,\"method\":\"m\"}\n");
         let replies = replies_until_closed(&mut r);
         assert_eq!(replies.len(), 1, "{replies:?}");
@@ -159,9 +203,9 @@ fn silent_refused_peers_do_not_delay_the_next_refusal() {
     writeln!(hw, r#"{{"id":1,"method":"m"}}"#).unwrap();
     assert!(reply(&mut hr).is_some());
     // Twenty drains of 250 ms each, one after another, would take five seconds.
-    let silent: Vec<_> = (0..MAX_REFUSING + 4).map(|_| client(addr)).collect();
+    let silent: Vec<_> = (0..MAX_REFUSING + 4).map(|_| raw_client(addr)).collect();
     let start = Instant::now();
-    let (mut r, _w) = client(addr);
+    let (mut r, _w) = raw_client(addr);
     let refused = reply(&mut r).unwrap();
     assert!(refused["error"].as_str().unwrap_or_default().starts_with("busy"), "{refused}");
     assert!(start.elapsed() < Duration::from_secs(1), "refused after {:?}", start.elapsed());
@@ -180,7 +224,13 @@ fn a_rejected_peer_that_stays_connected_frees_its_slot_at_the_deadline() {
     // `w` stays open, sending nothing.
     let deadline = Instant::now() + Duration::from_secs(4);
     loop {
-        let (mut dr, mut dw) = client(addr);
+        let (mut dr, mut dw) = raw_client(addr);
+        writeln!(dw, "{}", json!({"id":0,"method":"auth","params":{"token":TOKEN}})).unwrap();
+        if !reply(&mut dr).is_some_and(|v| v["ok"] == true) {
+            assert!(Instant::now() < deadline, "slot never freed");
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
         writeln!(dw, r#"{{"id":2,"method":"m"}}"#).unwrap();
         if reply(&mut dr).is_some_and(|v| v["ok"] == true) {
             break;
@@ -224,14 +274,20 @@ fn connection_limit_refuses_then_frees_slot() {
     // Make sure both are being served before the third arrives.
     writeln!(bw, r#"{{"id":1,"method":"m"}}"#).unwrap();
     assert!(reply(&mut br).is_some());
-    let (mut cr, _cw) = client(addr);
+    let (mut cr, _cw) = raw_client(addr);
     let v = reply(&mut cr).unwrap();
     assert!(v["error"].as_str().unwrap().starts_with("busy"));
     drop(a);
     // The freed slot is reusable once the server notices the disconnect.
     let deadline = Instant::now() + Duration::from_secs(4);
     loop {
-        let (mut dr, mut dw) = client(addr);
+        let (mut dr, mut dw) = raw_client(addr);
+        writeln!(dw, "{}", json!({"id":0,"method":"auth","params":{"token":TOKEN}})).unwrap();
+        if !reply(&mut dr).is_some_and(|v| v["ok"] == true) {
+            assert!(Instant::now() < deadline, "slot never freed");
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
         writeln!(dw, r#"{{"id":2,"method":"m"}}"#).unwrap();
         if reply(&mut dr).is_some_and(|v| v["ok"] == true) {
             break;

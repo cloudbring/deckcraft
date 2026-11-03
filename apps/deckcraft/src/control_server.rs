@@ -49,16 +49,31 @@ impl Default for Limits {
 }
 
 pub fn start(port: u16, ctx: egui::Context) -> Receiver<ControlRequest> {
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(l) => {
-            log::info!("control server listening on 127.0.0.1:{port}");
-            serve_listener(l, Limits::default(), ctx)
+    let listener = match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(listener) => listener,
+        Err(error) => {
+            log::error!("control server failed to bind 127.0.0.1:{port}: {error}");
+            return sync_channel::<ControlRequest>(0).1;
         }
-        Err(e) => {
-            log::error!("control server failed to bind 127.0.0.1:{port}: {e}");
-            sync_channel::<ControlRequest>(0).1
+    };
+    let token = match deckcraft_mcp::security::generate_token() {
+        Ok(token) => token,
+        Err(error) => {
+            log::error!("control server cannot generate token: {error}");
+            return sync_channel::<ControlRequest>(0).1;
         }
+    };
+    if let Some(path) = std::env::var_os("DECKCRAFT_CONTROL_TOKEN_FILE") {
+        if let Err(error) = deckcraft_mcp::security::write_token(std::path::Path::new(&path), &token) {
+            log::error!("control server cannot create token file: {error}");
+            return sync_channel::<ControlRequest>(0).1;
+        }
+        eprintln!("deckcraft: control token file: {}", std::path::Path::new(&path).display());
+    } else {
+        eprintln!("deckcraft: control token: {token}");
     }
+    log::info!("control server listening on {}", listener.local_addr().map_or_else(|_| format!("127.0.0.1:{port}"), |addr| addr.to_string()));
+    serve_listener(listener, Limits::default(), ctx, token)
 }
 
 /// How long the accepting thread waits after a failed accept. Accepting can keep failing, for
@@ -79,10 +94,11 @@ fn accepted<T>(incoming: impl Iterator<Item = std::io::Result<T>>, mut wait: imp
 }
 
 /// Accept connections on `listener` under `limits`; requests arrive on the returned receiver.
-fn serve_listener(listener: TcpListener, limits: Limits, ctx: egui::Context) -> Receiver<ControlRequest> {
+fn serve_listener(listener: TcpListener, limits: Limits, ctx: egui::Context, token: String) -> Receiver<ControlRequest> {
     let (tx, rx) = sync_channel::<ControlRequest>(limits.queue.max(1));
     let active = Arc::new(AtomicUsize::new(0));
     let refusing = Arc::new(AtomicUsize::new(0));
+    let token = Arc::new(token);
     std::thread::spawn(move || {
         for mut stream in accepted(listener.incoming(), || std::thread::sleep(ACCEPT_RETRY)) {
             let _ = stream.set_write_timeout(Some(limits.write_timeout));
@@ -95,9 +111,10 @@ fn serve_listener(listener: TcpListener, limits: Limits, ctx: egui::Context) -> 
             let slot = Slot(Arc::clone(&active));
             let tx = tx.clone();
             let ctx = ctx.clone();
+            let token = Arc::clone(&token);
             let spawned = std::thread::Builder::new().name("control-client".into()).spawn(move || {
                 let _slot = slot;
-                serve(stream, &tx, &ctx, limits);
+                serve(stream, &tx, &ctx, limits, &token);
             });
             if spawned.is_err() {
                 log::warn!("control server could not start a client thread");
@@ -241,8 +258,52 @@ fn close_politely(out: &TcpStream, reader: &mut BufReader<TcpStream>, grace: Dur
     }
 }
 
-fn serve(stream: TcpStream, tx: &SyncSender<ControlRequest>, ctx: &egui::Context, limits: Limits) {
+fn authenticate(stream: &mut TcpStream, expected: &str) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut line = Vec::new();
+    let mut complete = false;
+    while line.len() < 1024 {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() || stream.set_read_timeout(Some(remaining)).is_err() {
+            return false;
+        }
+        let mut byte = [0];
+        if stream.read_exact(&mut byte).is_err() {
+            return false;
+        }
+        if byte[0] == b'\n' {
+            complete = true;
+            break;
+        }
+        line.push(byte[0]);
+    }
+    let request: Value = serde_json::from_slice(&line).unwrap_or(Value::Null);
+    let id = request.get("id").cloned().unwrap_or(Value::Null);
+    let supplied = request.get("params").and_then(|params| params.get("token")).and_then(Value::as_str).unwrap_or("");
+    let valid =
+        complete && request.get("method").and_then(Value::as_str) == Some("auth") && deckcraft_mcp::security::token_matches(expected, supplied);
+    if !valid {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let response = if valid {
+        json!({"id":id,"ok":true,"result":{"authenticated":true}})
+    } else {
+        json!({"id":id,"ok":false,"error":"authentication required"})
+    };
+    writeln!(stream, "{response}").is_ok() && valid
+}
+
+fn serve(mut stream: TcpStream, tx: &SyncSender<ControlRequest>, ctx: &egui::Context, limits: Limits, token: &str) {
     if stream.set_read_timeout(Some(limits.idle_timeout)).is_err() || stream.set_write_timeout(Some(limits.write_timeout)).is_err() {
+        return;
+    }
+    if !authenticate(&mut stream, token) {
+        if let Ok(read) = stream.try_clone() {
+            close_politely(&stream, &mut BufReader::new(read), limits.write_timeout.min(REFUSED_GRACE));
+        }
+        return;
+    }
+    if stream.set_read_timeout(Some(limits.idle_timeout)).is_err() {
         return;
     }
     let Ok(read) = stream.try_clone() else { return };
@@ -269,6 +330,12 @@ fn serve(stream: TcpStream, tx: &SyncSender<ControlRequest>, ctx: &egui::Context
                 break;
             }
             Parsed::Request { id, method, params } => {
+                if method == "auth" {
+                    if writeln!(out, "{}", json!({"id":id,"ok":false,"error":"already authenticated"})).is_err() {
+                        break;
+                    }
+                    continue;
+                }
                 let (req, rrx) = ControlRequest::new(method, params);
                 let state = Arc::clone(&req.state);
                 let mut r = match tx.try_send(req) {

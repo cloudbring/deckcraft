@@ -3,6 +3,14 @@
 Start the app with `--control <port>`. The server listens on `127.0.0.1` only and speaks JSON
 lines: one request object per line, one reply per line.
 
+Every launch generates a new random control token. By default the app prints it to stderr; set
+`DECKCRAFT_CONTROL_TOKEN_FILE` to a new path to create a token file instead (owner-only mode 0600
+on Unix). Remove the old file before restarting. Set that same variable for `deckcraft-cli app`
+or `deckcraft-cli mcp --connect`, or set `DECKCRAFT_CONTROL_TOKEN` to the printed token.
+Keep the token private. Each connection must first send
+`{"id":0,"method":"auth","params":{"token":"TOKEN"}}` and receive a successful reply.
+An invalid first request is rejected and the connection closed before any command is dispatched.
+
 A line that is not a JSON object with a string `method` (an HTTP request, text that isn't JSON,
 bytes that aren't UTF-8) gets one error reply and the server closes the connection; nothing sent
 after it runs. Blank lines are skipped.
