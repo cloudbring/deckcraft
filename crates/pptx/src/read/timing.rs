@@ -17,7 +17,7 @@ fn ms_attr(e: &El, name: &str) -> Option<u32> {
 }
 
 pub fn transition(imp: &mut Imp, part: &Part, t: &El) -> Option<Transition> {
-    let effect = t.elements().find(|e| !matches!(e.local(), "sndAc" | "extLst"));
+    let effect = t.elements().find(|e| !matches!(e.name.as_str(), "sndAc" | "extLst"));
     let mut tr = Transition { advance_on_click: t.bool("advClick").unwrap_or(true), advance_after_ms: ms_attr(t, "advTm"), ..Default::default() };
     match effect.and_then(maps::transition_from_xml) {
         Some((k, o)) => {
@@ -26,7 +26,7 @@ pub fn transition(imp: &mut Imp, part: &Part, t: &El) -> Option<Transition> {
         }
         None => match effect {
             Some(e) => {
-                tr.kind = e.local().to_string();
+                tr.kind = e.name.as_str().to_string();
                 tr.raw = Some(part.keep(t));
             }
             None => tr.kind = "none".into(),

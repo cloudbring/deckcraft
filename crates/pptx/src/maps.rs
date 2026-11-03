@@ -25,7 +25,7 @@ fn transition_from_xml_raw(e: &El) -> Option<(String, String)> {
     // Defaults are what PowerPoint leaves out: e.g. it writes Push Left as `<p:push/>`.
     let dir = |d: &str| e.attr("dir").unwrap_or(d).to_string();
     let k = |s: &str| s.to_string();
-    Some(match e.local() {
+    Some(match e.name.as_str() {
         "fade" => (k("fade"), if e.bool("thruBlk") == Some(true) { k("throughBlack") } else { k("smoothly") }),
         "cut" => (k("cut"), if e.bool("thruBlk") == Some(true) { k("throughBlack") } else { String::new() }),
         "push" => (k("push"), dir("l")),

@@ -39,10 +39,10 @@ pub fn transition(w: &mut W, x: &mut Exp, o: &mut Out, t: &Transition) {
             // Unknown kind: write the kept element if there is one, else a fade.
             if let Some(raw) = &t.raw
                 && let Ok(d) = crate::xml::parse(raw.as_bytes())
-                && let Some(e) = d.root.elements().find(|e| !matches!(e.local(), "sndAc" | "extLst"))
+                && let Some(e) = d.root.elements().find(|e| !matches!(e.name.as_str(), "sndAc" | "extLst"))
                 && !crate::read::has_rel_refs(e)
             {
-                let prefix = e.prefix().to_string();
+                let prefix = e.prefix.as_deref().unwrap_or("").to_string();
                 let mut ns_decl = d.ns_decls();
                 ns_decl.retain(|(k, _)| k == &format!("xmlns:{prefix}"));
                 let mut e2 = e.clone();

@@ -60,7 +60,7 @@ impl Imp<'_> {
             return Some(*m);
         }
         let data = self.pkg.get(part)?.to_vec();
-        let name = opc::file_of(self.pkg.original_name(part).unwrap_or(part)).to_string();
+        let name = opc::file_of(part).to_string();
         let content_type = self.pkg.content_type(part).filter(|c| !c.is_empty()).unwrap_or_else(|| crate::mime_for(&name).to_string());
         let id = MediaId(self.alloc());
         self.media.push(MediaItem { id, name, content_type, data: Arc::new(data), link: None });
@@ -143,7 +143,7 @@ pub fn keep_xml(el: &El, ns: &[(String, String)]) -> String {
         if depth > crate::xml::MAX_DEPTH {
             return;
         }
-        if let Some((p, _)) = e.name.split_once(':') {
+        if let Some(p) = e.prefix.as_deref() {
             used.insert(p.to_string());
         }
         for (k, _) in &e.attrs {
@@ -192,7 +192,7 @@ fn choice_has_model3d(el: &El, rels: &Rels) -> bool {
             return false;
         }
         if el.is("contentPart")
-            && let Some(id) = el.attr("r:id").filter(|s| !s.is_empty())
+            && let Some(id) = el.attr_ns("r", "id").filter(|s| !s.is_empty())
             && rels.get(id).is_some_and(is_model3d)
         {
             return true;
@@ -224,7 +224,7 @@ pub fn tags(imp: &mut Imp, part: &Part, holder: &El) -> Vec<(String, String)> {
         if imp.tags_capped {
             return out;
         }
-        let Some(target) = t.attr("r:id").and_then(|id| part.rels.get(id)).map(|r| opc::norm(&r.target)) else { continue };
+        let Some(target) = t.attr_ns("r", "id").and_then(|id| part.rels.get(id)).map(|r| opc::norm(&r.target)) else { continue };
         if !seen.insert(target.clone()) {
             continue;
         }
@@ -422,7 +422,7 @@ pub fn import_theme(bytes: &[u8]) -> Result<(deckcraft_model::theme::Theme, Vec<
                 .root
                 .child("sldMasterIdLst")
                 .and_then(|l| l.children_named("sldMasterId").next())
-                .and_then(|m| pres_part.rels.target(m.attr("r:id").unwrap_or("")).map(String::from))
+                .and_then(|m| pres_part.rels.target(m.attr_ns("r", "id").unwrap_or("")).map(String::from))
                 .or_else(|| pres_part.rels.all_of("slideMaster").next().map(|r| r.target.clone()))
                 .ok_or_else(|| PptxError::NotPptx("the presentation has no slide master".into()))?;
             pkg.rels(&master).first_of("theme").map(|r| r.target.clone()).ok_or_else(|| PptxError::NotPptx("the slide master has no theme".into()))?
@@ -525,7 +525,9 @@ pub fn import_checked(bytes: &[u8]) -> Result<(Presentation, Vec<String>), PptxE
 fn master_and_slide_paths(pres_el: &El, pres_part: &Part) -> (Vec<String>, Vec<(u32, String)>) {
     let master_paths: Vec<String> = pres_el
         .child("sldMasterIdLst")
-        .map(|l| l.children_named("sldMasterId").filter_map(|m| pres_part.rels.target(m.attr("r:id").unwrap_or(""))).map(String::from).collect())
+        .map(|l| {
+            l.children_named("sldMasterId").filter_map(|m| pres_part.rels.target(m.attr_ns("r", "id").unwrap_or(""))).map(String::from).collect()
+        })
         .unwrap_or_default();
     let mut master_paths: Vec<String> =
         if master_paths.is_empty() { pres_part.rels.all_of("slideMaster").map(|r| r.target.clone()).collect() } else { master_paths };
@@ -534,7 +536,7 @@ fn master_and_slide_paths(pres_el: &El, pres_part: &Part) -> (Vec<String>, Vec<(
         .map(|l| {
             l.children_named("sldId")
                 .take(10_000)
-                .filter_map(|s| Some((s.u32("id").unwrap_or(0), pres_part.rels.target(s.attr("r:id").unwrap_or(""))?.to_string())))
+                .filter_map(|s| Some((s.u32("id").unwrap_or(0), pres_part.rels.target(s.attr_ns("r", "id").unwrap_or(""))?.to_string())))
                 .collect()
         })
         .unwrap_or_default();
@@ -702,7 +704,8 @@ fn read_slide_comments(pkg: &Package, pres_part: &Part, part: &Part, slide: &mut
         if let Some(cd) = pkg.xml(&c.target) {
             // The content type names the modern part; a package that types it only through a
             // Default entry instead of an Override is still modern when its root is p188.
-            let modern = pkg.content_type(&c.target).as_deref() == Some(crate::write::CT_COMMENTS_MODERN) || cd.root.prefix() == "p188";
+            let modern =
+                pkg.content_type(&c.target).as_deref() == Some(crate::write::CT_COMMENTS_MODERN) || cd.root.prefix.as_deref().unwrap_or("") == "p188";
             parts.push((cd, modern));
         }
     }
@@ -741,7 +744,7 @@ fn read_custom_shows(p: &mut Presentation, imp: &Imp, pres_part: &Part, pres_el:
             .child("sldLst")
             .map(|l| {
                 l.children_named("sld")
-                    .filter_map(|s| pres_part.rels.target(s.attr("r:id").unwrap_or("")))
+                    .filter_map(|s| pres_part.rels.target(s.attr_ns("r", "id").unwrap_or("")))
                     .filter_map(|t| imp.slide_by_part.get(&opc::norm(t)).copied())
                     .collect()
             })
@@ -862,7 +865,7 @@ fn read_embedded_fonts(imp: &mut Imp, pres: &Part, root: &El) -> Vec<EmbeddedFon
         let Some(typeface) = font.attr("typeface").map(str::trim).filter(|t| !t.is_empty()) else { continue };
         let typeface: String = typeface.chars().take(255).collect();
         let slot = |imp: &mut Imp, name: &str| -> Option<MediaId> {
-            let id = e.child(name)?.attr("r:id")?;
+            let id = e.child(name)?.attr_ns("r", "id")?;
             let part = pres.rels.target(id)?;
             let data = imp.pkg.get(part)?;
             if data.is_empty() || data.len() > MAX_FONT_BYTES {
@@ -1068,7 +1071,7 @@ fn table_styles(imp: &mut Imp, part: &Part, root: &El) -> Vec<deckcraft_model::t
             let mut def = TableStyleDef { id, name: st.attr("styleName").unwrap_or("").to_string(), raw: part.keep(st), ..Default::default() };
             if let Some(bg) = st.child("tblBg") {
                 let mut ps = TablePartStyle::default();
-                if let Some(f) = bg.elements().find(|e| e.local().ends_with("Fill")) {
+                if let Some(f) = bg.elements().find(|e| e.name.as_str().ends_with("Fill")) {
                     ps.fill = dml::fill_el(imp, part, f);
                 }
                 if let Some(fr) = bg.child("fillRef") {
@@ -1080,7 +1083,7 @@ fn table_styles(imp: &mut Imp, part: &Part, root: &El) -> Vec<deckcraft_model::t
                 def.background = Some(ps);
             }
             for el in st.elements() {
-                let Some(kind) = TablePart::from_xml(el.local()) else { continue };
+                let Some(kind) = TablePart::from_xml(el.name.as_str()) else { continue };
                 let mut ps = TablePartStyle::default();
                 if let Some(tx) = el.child("tcTxStyle") {
                     ps.text_color = dml::color(tx);
@@ -1173,7 +1176,7 @@ fn read_master(imp: &mut Imp, path: &str, doc: &Doc, docs: &HashMap<String, Doc>
     // Layouts in list order, then any other related layouts.
     let mut lpaths: Vec<String> = root
         .child("sldLayoutIdLst")
-        .map(|l| l.children_named("sldLayoutId").filter_map(|x| part.rels.target(x.attr("r:id").unwrap_or(""))).map(String::from).collect())
+        .map(|l| l.children_named("sldLayoutId").filter_map(|x| part.rels.target(x.attr_ns("r", "id").unwrap_or(""))).map(String::from).collect())
         .unwrap_or_default();
     for r in part.rels.all_of("slideLayout") {
         if !lpaths.iter().any(|x| opc::norm(x) == opc::norm(&r.target)) {
@@ -1368,7 +1371,7 @@ fn read_show(sp: &El, shows: &HashMap<String, String>) -> ShowSettings {
 fn read_core(root: &El, p: &mut Properties) {
     for e in root.elements() {
         let t = e.text();
-        match e.local() {
+        match e.name.as_str() {
             "title" => p.title = t,
             "subject" => p.subject = t,
             "creator" => p.author = t,

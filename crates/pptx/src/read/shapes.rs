@@ -64,7 +64,7 @@ pub fn sp_tree(imp: &mut Imp, part: &Part, ctx: &mut IdCtx, tree: &El, depth: us
             log::warn!("pptx: too many shapes in {}", part.name);
             break;
         }
-        let s = match e.local() {
+        let s = match e.name.as_str() {
             "sp" => Some(sp(imp, part, ctx, e)),
             "pic" => Some(pic(imp, part, ctx, e)),
             "grpSp" => Some(grp(imp, part, ctx, e, depth)),
@@ -125,7 +125,7 @@ fn remap_connectors(shapes: &mut [Shape], ctx: &IdCtx, depth: usize) {
 /// attributes; it reads an object as locked only when the whole set for its kind is there, so a
 /// lone `noMove` or `noResize` (other tools' partial locks) isn't Lock.
 fn is_locked(l: &El) -> bool {
-    let set: &[&str] = match l.local() {
+    let set: &[&str] = match l.name.as_str() {
         "grpSpLocks" => &["noGrp", "noUngrp", "noRot", "noMove", "noResize"],
         "graphicFrameLocks" => &["noGrp", "noDrilldown", "noMove", "noResize"],
         _ => &["noGrp", "noRot", "noMove", "noResize", "noEditPoints", "noAdjustHandles", "noChangeArrowheads", "noChangeShapeType"],
@@ -148,13 +148,13 @@ fn base(imp: &mut Imp, part: &Part, ctx: &mut IdCtx, nv: Option<&El>) -> Shape {
     }
     if let Some(nv) = nv {
         for e in nv.elements() {
-            match e.local() {
+            match e.name.as_str() {
                 "cNvSpPr" => {
                     s.text_box = e.bool("txBox").unwrap_or(false);
                     s.locked = e.child("spLocks").is_some_and(is_locked);
                 }
                 "cNvPicPr" | "cNvGrpSpPr" | "cNvCxnSpPr" | "cNvGraphicFramePr" => {
-                    s.locked = e.elements().find(|l| l.local().ends_with("Locks")).is_some_and(is_locked);
+                    s.locked = e.elements().find(|l| l.name.as_str().ends_with("Locks")).is_some_and(is_locked);
                 }
                 "nvPr" => {
                     if let Some(ph) = e.child("ph") {
@@ -296,7 +296,7 @@ fn find_content_part(el: &El) -> Option<&El> {
 
 /// `p:contentPart` whose relationship is a 3-D model. Other content parts (ink) are left out.
 fn content_part(imp: &mut Imp, part: &Part, ctx: &mut IdCtx, e: &El) -> Option<Shape> {
-    let id = e.attr("r:id").filter(|s| !s.is_empty())?;
+    let id = e.attr_ns("r", "id").filter(|s| !s.is_empty())?;
     let rel = part.rels.get(id)?;
     if !super::is_model3d(rel) {
         return None;
@@ -428,7 +428,7 @@ fn frame(imp: &mut Imp, part: &Part, ctx: &mut IdCtx, e: &El, depth: usize) -> S
             return s;
         }
         if let Some(c) = gd.child("chart")
-            && let Some(rel) = part.rels.get(c.attr("r:id").unwrap_or(""))
+            && let Some(rel) = part.rels.get(c.attr_ns("r", "id").unwrap_or(""))
             && let Some(bytes) = imp.pkg.xml_bytes(&rel.target)
             && let Some(mut chart) = if uri.ends_with("/chartex") { super::read_chartex_xml(bytes) } else { super::read_chart_xml(bytes) }
         {
@@ -517,7 +517,7 @@ fn vml_index(pkg: &crate::opc::Package, vml: &str) -> std::collections::HashMap<
             continue; // the first shape with an id wins, as the old lookup did
         }
         let Some(img) = s.find("imagedata") else { continue };
-        let Some(rid) = img.attr("o:relid").or(img.attr("r:id")) else { continue };
+        let Some(rid) = img.attr_ns("o", "relid").or(img.attr_ns("r", "id")) else { continue };
         if let Some(r) = rels.get(rid).filter(|r| !r.external) {
             out.insert(id.to_string(), r.target.clone());
         }
@@ -605,10 +605,10 @@ fn smartart_text_rects(imp: &mut Imp, ctx: &mut IdCtx, tree: &El, shapes: Vec<Sh
     let mut out = Vec::with_capacity(shapes.len());
     let mut shapes = shapes.into_iter();
     // The same elements `sp_tree` turns into shapes.
-    for e in tree.elements().filter(|e| matches!(e.local(), "sp" | "pic" | "grpSp" | "cxnSp" | "graphicFrame")) {
+    for e in tree.elements().filter(|e| matches!(e.name.as_str(), "sp" | "pic" | "grpSp" | "cxnSp" | "graphicFrame")) {
         let Some(mut s) = shapes.next() else { break };
         let mut text_box = None;
-        match (e.local(), &mut s.kind) {
+        match (e.name.as_str(), &mut s.kind) {
             ("grpSp", ShapeKind::Group { children, .. }) => {
                 let kids = std::mem::take(children);
                 *children = smartart_text_rects(imp, ctx, e, kids, depth + 1);
@@ -750,7 +750,8 @@ fn table(imp: &mut Imp, part: &Part, tbl: &El) -> Table {
     // Grid"), not without lines.
     let mut t = Table { style: "grid".into(), first_row: false, band_row: false, ..Default::default() };
     if let Some(pr) = tbl.child("tblPr") {
-        t.background = pr.elements().find(|e| e.local().ends_with("Fill") && e.local() != "noFill").and_then(|f| dml::fill_el(imp, part, f));
+        t.background =
+            pr.elements().find(|e| e.name.as_str().ends_with("Fill") && e.name.as_str() != "noFill").and_then(|f| dml::fill_el(imp, part, f));
         t.first_row = pr.bool("firstRow").unwrap_or(false);
         t.first_col = pr.bool("firstCol").unwrap_or(false);
         t.last_row = pr.bool("lastRow").unwrap_or(false);

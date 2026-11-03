@@ -9,7 +9,7 @@ use crate::xml::El;
 fn simple_fill(sp: Option<&El>) -> Option<Fill> {
     let sp = sp?;
     for e in sp.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "noFill" => return Some(Fill::None),
             "solidFill" => return super::dml::color(e).map(|color| Fill::Solid { color }),
             "gradFill" => return Some(Fill::Gradient(super::dml::gradient(e))),
@@ -131,7 +131,7 @@ fn chart_within(root: &El, mut budget: usize) -> Option<Chart> {
         pa.children_named("valAx").filter_map(|a| Some((a.child_val("axId")?, matches!(a.child_val("axPos"), Some("l" | "r"))))).collect();
     let primary_val = primary_value_axis(pa, &val_map);
     for g in pa.elements() {
-        let name = g.local();
+        let name = g.name.as_str();
         if !name.ends_with("Chart") {
             continue;
         }
@@ -178,7 +178,7 @@ fn group_value_axis(val_map: &std::collections::HashMap<&str, bool>, g: &El) -> 
 fn primary_value_axis(pa: &El, val_map: &std::collections::HashMap<&str, bool>) -> Option<String> {
     let secondary_placed = |a: &El| a.child_val("crosses") == Some("max") || matches!(a.child_val("axPos"), Some("r" | "t"));
     let val_axes_by_id: std::collections::HashMap<&str, &El> = pa.children_named("valAx").filter_map(|a| Some((a.child_val("axId")?, a))).collect();
-    let used: Vec<String> = pa.elements().filter(|g| g.local().ends_with("Chart")).filter_map(|g| group_value_axis(val_map, g)).collect();
+    let used: Vec<String> = pa.elements().filter(|g| g.name.as_str().ends_with("Chart")).filter_map(|g| group_value_axis(val_map, g)).collect();
     used.iter().find(|id| val_axes_by_id.get(id.as_str()).is_some_and(|a| !secondary_placed(a))).or(used.first()).cloned()
 }
 
@@ -522,7 +522,7 @@ fn copy_part(
         seen.insert(key, false);
         return false;
     };
-    let name = pkg.original_name(part).unwrap_or(part).trim_start_matches('/').to_string();
+    let name = part.trim_start_matches('/').to_string();
     if !crate::opc::sidecar_part(&name) {
         log::warn!("pptx: chart part name {name} is not kept");
         seen.insert(key, false);
@@ -544,7 +544,7 @@ fn copy_part(
         && let Some(rels_bytes) = pkg.get(&rels_name)
     {
         seen.insert(crate::opc::norm(&rels_name), true);
-        let name = pkg.original_name(&rels_name).unwrap_or(&rels_name).trim_start_matches('/').to_string();
+        let name = rels_name.trim_start_matches('/').to_string();
         let stored_rels = if *retained_bytes + rels_bytes.len() <= MAX_KEPT_TOTAL_BYTES {
             *retained_bytes += rels_bytes.len();
             rels_bytes.to_vec()

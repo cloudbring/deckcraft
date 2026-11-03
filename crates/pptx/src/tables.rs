@@ -258,7 +258,7 @@ mod tests {
         let mut n = 0;
         for st in d.root.children_named("tblStyle") {
             n += 1;
-            let pos: Vec<usize> = st.elements().map(|e| ORDER.iter().position(|o| *o == e.local()).unwrap()).collect();
+            let pos: Vec<usize> = st.elements().map(|e| ORDER.iter().position(|o| *o == e.name.as_str()).unwrap()).collect();
             assert!(pos.windows(2).all(|w| w[0] < w[1]), "{:?}: {pos:?}", st.attr("styleName"));
         }
         assert!(n > 30);

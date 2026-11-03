@@ -273,7 +273,11 @@ impl Shape3d {
             }
             // Colours are re-serialized by the XML writer (escaped); only `a:`-prefixed ones,
             // since they are written back inside our own `a:sp3d`.
-            s.colors = sp.elements().filter(|c| (c.is("extrusionClr") || c.is("contourClr")) && c.prefix() == "a").map(|c| c.to_xml()).collect();
+            s.colors = sp
+                .elements()
+                .filter(|c| (c.is("extrusionClr") || c.is("contourClr")) && c.prefix.as_deref() == Some("a"))
+                .map(|c| c.to_xml())
+                .collect();
         }
         s
     }

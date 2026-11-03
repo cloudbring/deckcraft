@@ -163,7 +163,7 @@ pub fn read_cust_geom(cg: &El, w_emu: f64, h_emu: f64) -> Vec<CustomPath> {
         let mut cur = (0.0, 0.0);
         let mut start = (0.0, 0.0);
         for c in p.elements().take(100_000) {
-            match c.local() {
+            match c.name.as_str() {
                 "moveTo" => {
                     if let Some(q) = c.child("pt") {
                         cur = pt(&g, q);

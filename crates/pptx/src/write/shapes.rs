@@ -851,7 +851,7 @@ fn opaque(
     // Kept XML is written back as it was when every part it references was kept too, with those
     // parts re-added under this slide's relationship ids.
     if let Ok(doc) = crate::xml::parse(xml.as_bytes())
-        && matches!(doc.root.local(), "graphicFrame" | "sp" | "grpSp" | "cxnSp")
+        && matches!(doc.root.name.as_str(), "graphicFrame" | "sp" | "grpSp" | "cxnSp")
     {
         let mut part_map: std::collections::HashMap<&str, (&str, deckcraft_model::MediaId)> = std::collections::HashMap::new();
         for (id, kind, m) in parts {

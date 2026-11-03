@@ -35,7 +35,7 @@ fn lin_to_srgb(v: f64) -> f64 {
 
 /// A colour element (`srgbClr`, `schemeClr`, …) with its transforms.
 pub fn color_el(c: &El) -> Option<ColorRef> {
-    let base = match c.local() {
+    let base = match c.name.as_str() {
         "srgbClr" => ColorBase::Rgb { rgb: Rgba::from_hex(c.attr("val").unwrap_or("000000")).unwrap_or(Rgba::BLACK) },
         "schemeClr" => ColorBase::Scheme { slot: c.attr("val").and_then(SchemeSlot::from_xml).unwrap_or(SchemeSlot::Tx1) },
         "sysClr" => ColorBase::System {
@@ -55,7 +55,7 @@ pub fn color_el(c: &El) -> Option<ColorRef> {
         }
         _ => return None,
     };
-    let mods = c.elements().take(32).filter_map(|m| ColorTransform::from_xml(m.local(), m.i32("val"))).collect();
+    let mods = c.elements().take(32).filter_map(|m| ColorTransform::from_xml(m.name.as_str(), m.i32("val"))).collect();
     Some(ColorRef { base, mods })
 }
 
@@ -68,11 +68,11 @@ const FILL_NAMES: [&str; 6] = ["noFill", "solidFill", "gradFill", "blipFill", "p
 
 /// The fill child of `parent`, if any.
 pub fn fill_of(imp: &mut Imp, part: &Part, parent: &El) -> Option<Fill> {
-    parent.elements().find(|e| FILL_NAMES.contains(&e.local())).and_then(|f| fill_el(imp, part, f))
+    parent.elements().find(|e| FILL_NAMES.contains(&e.name.as_str())).and_then(|f| fill_el(imp, part, f))
 }
 
 pub fn fill_el(imp: &mut Imp, part: &Part, f: &El) -> Option<Fill> {
-    Some(match f.local() {
+    Some(match f.name.as_str() {
         "noFill" => Fill::None,
         "solidFill" => Fill::Solid { color: color(f).unwrap_or(ColorRef::rgb(Rgba::BLACK)) },
         "gradFill" => Fill::Gradient(gradient(f)),
@@ -140,9 +140,9 @@ pub fn blip_fill(imp: &mut Imp, part: &Part, bf: &El) -> Option<PictureFill> {
     if let Some(layer) = blip.and_then(|b| b.child("extLst")).and_then(|x| x.find("imgLayer"))
         && let Some(effect) = layer
             .elements()
-            .filter(|e| e.local() == "imgEffect")
+            .filter(|e| e.name.as_str() == "imgEffect")
             .flat_map(|e| e.elements())
-            .map(|e| e.local().to_string())
+            .map(|e| e.name.as_str().to_string())
             .find(|n| n.starts_with("artistic"))
         && let Some(original) = media_ref(imp, part, layer)
     {
@@ -150,7 +150,7 @@ pub fn blip_fill(imp: &mut Imp, part: &Part, bf: &El) -> Option<PictureFill> {
     }
     if let Some(b) = blip {
         for e in b.elements() {
-            match e.local() {
+            match e.name.as_str() {
                 "alphaModFix" => pf.alpha = Some(pct(e, "amt").unwrap_or(1.0).clamp(0.0, 1.0)),
                 "lum" => {
                     pf.adjust.brightness = pct(e, "bright").unwrap_or(0.0).clamp(-1.0, 1.0);
@@ -231,7 +231,7 @@ pub fn line(imp: &mut Imp, part: &Part, ln: &El) -> Line {
     l.align = ln.attr("algn").and_then(LineAlign::from_xml);
     l.fill = fill_of(imp, part, ln);
     for e in ln.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "prstDash" => l.dash = Some(Dash::Preset { name: e.attr("val").unwrap_or("solid").to_string() }),
             "custDash" => {
                 let pattern = e.children_named("ds").take(64).map(|d| (pct(d, "d").unwrap_or(1.0), pct(d, "sp").unwrap_or(1.0))).collect();
@@ -287,7 +287,7 @@ fn shadow(e: &El, inner: bool) -> Shadow {
 pub fn effects(el: &El) -> Effects {
     let mut fx = Effects::default();
     for e in el.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "outerShdw" => fx.outer_shadow = Some(shadow(e, false)),
             "prstShdw" => {
                 let mut s = shadow(e, false);
@@ -298,7 +298,7 @@ pub fn effects(el: &El) -> Effects {
             "glow" => fx.glow = Some(Glow { color: color(e).unwrap_or(ColorRef::rgb(Rgba::BLACK)), radius: pt(e, "rad").unwrap_or(0.0).max(0.0) }),
             "softEdge" => fx.soft_edge = Some(pt(e, "rad").unwrap_or(0.0).max(0.0)),
             "fillOverlay" => {
-                let fill = e.elements().find_map(|f| match f.local() {
+                let fill = e.elements().find_map(|f| match f.name.as_str() {
                     "solidFill" => color(f).map(|c| Fill::Solid { color: c }),
                     "gradFill" => Some(Fill::Gradient(gradient(f))),
                     _ => None,
@@ -361,7 +361,7 @@ pub fn body_pr(b: &El) -> BodyProps {
         ..Default::default()
     };
     for e in b.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "normAutofit" => {
                 p.autofit = Some(AutoFit::Shrink {
                     font_scale: pct(e, "fontScale").map(|v| v.clamp(0.01, 1.0)),
@@ -434,7 +434,7 @@ pub fn ppr(imp: &mut Imp, part: &Part, p: &El) -> (Option<u8>, ParaProps, Option
     let lvl = p.u32("lvl").map(|l| l.min(8) as u8);
     let mut def = None;
     for e in p.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "lnSpc" => pp.line_spacing = spacing(e),
             "spcBef" => pp.space_before = spacing(e),
             "spcAft" => pp.space_after = spacing(e),
@@ -473,7 +473,7 @@ pub fn ppr(imp: &mut Imp, part: &Part, p: &El) -> (Option<u8>, ParaProps, Option
 }
 
 pub fn hyperlink(imp: &mut Imp, part: &Part, h: &El) -> Option<Hyperlink> {
-    let rid = h.attr("r:id").unwrap_or("");
+    let rid = h.attr_ns("r", "id").unwrap_or("");
     let rel = part.rels.get(rid);
     let action = h.attr("action").unwrap_or("");
     let a = if let Some(rest) = action.strip_prefix("ppaction://hlinkshowjump?jump=") {
@@ -551,7 +551,7 @@ pub fn rpr(imp: &mut Imp, part: &Part, r: &El) -> RunProps {
         ..Default::default()
     };
     for e in r.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "ln" => p.outline = Some(line(imp, part, e)),
             n if FILL_NAMES.contains(&n) => p.fill = fill_el(imp, part, e),
             "effectLst" => {
@@ -580,7 +580,7 @@ pub fn rpr(imp: &mut Imp, part: &Part, r: &El) -> RunProps {
 pub fn list_style(imp: &mut Imp, part: &Part, ls: &El) -> ListStyle {
     let mut out = ListStyle::default();
     for e in ls.elements() {
-        let n = e.local();
+        let n = e.name.as_str();
         let Some(l) = n.strip_prefix("lvl").and_then(|r| r.strip_suffix("pPr")).and_then(|d| d.parse::<u8>().ok()) else { continue };
         if !(1..=9).contains(&l) {
             continue;
@@ -641,7 +641,7 @@ fn push_math_run(para: &mut Paragraph, part: &Part, e: &El) {
 pub fn paragraph(imp: &mut Imp, part: &Part, p: &El) -> Paragraph {
     let mut para = Paragraph::default();
     for e in p.elements() {
-        match e.local() {
+        match e.name.as_str() {
             "pPr" => {
                 let (lvl, pp, def) = ppr(imp, part, e);
                 para.level = lvl.unwrap_or(0);

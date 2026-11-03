@@ -754,7 +754,7 @@ fn drop_unkept_refs(root: &mut crate::xml::El, c: &Chart) {
             return;
         }
         e.children.retain(|n| match n {
-            crate::xml::Node::El(x) if x.is("externalData") || x.is("userShapes") => x.attr("r:id").is_some_and(|id| ids.contains(id)),
+            crate::xml::Node::El(x) if x.is("externalData") || x.is("userShapes") => x.attr_ns("r", "id").is_some_and(|id| ids.contains(id)),
             _ => true,
         });
         for ch in e.elements_mut() {
@@ -880,7 +880,7 @@ fn kept_region_layout(raw: &str) -> Option<String> {
     let s = region.children_named("series").find(|s| s.attr("layoutId") == Some("regionMap"))?;
     let lp = s.child("layoutPr")?;
     // Written under our `cx` prefix; a part that bound chartex to another prefix is not copied.
-    lp.name.starts_with("cx:").then(|| lp.to_xml())
+    (lp.prefix.as_deref() == Some("cx")).then(|| lp.to_xml())
 }
 
 /// Writes an Office 2016 chart from the model, as PowerPoint lays the part out: one `cx:data`
