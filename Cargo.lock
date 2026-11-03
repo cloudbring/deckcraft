@@ -823,7 +823,7 @@ dependencies = [
 [[package]]
 name = "craft-av1"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -833,9 +833,9 @@ dependencies = [
 [[package]]
 name = "craft-bitstream"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
 dependencies = [
- "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1)",
+ "craft-media 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9)",
 ]
 
 [[package]]
@@ -846,7 +846,7 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 [[package]]
 name = "craft-h264"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -856,7 +856,7 @@ dependencies = [
 [[package]]
 name = "craft-hevc"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
 dependencies = [
  "craft-bitstream",
  "rayon",
@@ -889,7 +889,7 @@ dependencies = [
 [[package]]
 name = "craft-media"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-av1#58f8a71e1f29d1ff6238e8eed5215873249550c9"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
 dependencies = [
  "thiserror 2.0.21",
 ]
@@ -955,6 +955,16 @@ dependencies = [
  "winreg",
  "winsafe",
  "zip 9.1.0",
+]
+
+[[package]]
+name = "craft-vp9"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F48-craft-vp9#9aafc3f89c4ce45dc12d5392b194c759a18cf3b0"
+dependencies = [
+ "craft-bitstream",
+ "rayon",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1164,11 +1174,11 @@ dependencies = [
  "craft-av1",
  "craft-h264",
  "craft-hevc",
+ "craft-vp9",
  "deckcraft-isobmff",
  "deckcraft-matroska",
  "deckcraft-ogg",
  "deckcraft-opus",
- "deckcraft-vp9",
  "image",
  "log",
  "symphonia",
@@ -1299,16 +1309,6 @@ dependencies = [
 [[package]]
 name = "deckcraft-video-budget"
 version = "0.15.0"
-
-[[package]]
-name = "deckcraft-vp9"
-version = "0.15.0"
-dependencies = [
- "craft-bitstream",
- "deckcraft-video-budget",
- "rayon",
- "thiserror 2.0.21",
-]
 
 [[package]]
 name = "deckcraft-web"

@@ -151,16 +151,16 @@ impl Codec for Hevc {
 }
 
 struct Vp9 {
-    dec: deckcraft_vp9::Decoder,
+    dec: craft_vp9::Decoder,
 }
 
 impl Vp9 {
-    fn convert(p: deckcraft_vp9::Picture) -> Pic {
+    fn convert(p: craft_vp9::Picture) -> Pic {
         let (w, h) = (p.width as usize, p.height as usize);
         if p.color.color_space == 7 {
             // RGB (4:4:4): the planes carry G, B, R.
             let shift = p.bit_depth.saturating_sub(8);
-            let at = |pl: &deckcraft_vp9::Plane, i: usize| if i < pl.len() { (pl.get(i) >> shift) as u8 } else { 0 };
+            let at = |pl: &craft_vp9::Plane, i: usize| if i < pl.len() { (pl.get(i) >> shift) as u8 } else { 0 };
             let mut rgba = Vec::with_capacity(w * h * 4);
             for row in 0..h {
                 for col in 0..w {
@@ -178,7 +178,7 @@ impl Vp9 {
             5 => Matrix::Bt2020,
             _ => Matrix::from_code(2, p.height),
         };
-        plane_pic!(&p, deckcraft_vp9::Plane, u32::from(p.subsampling_x), u32::from(p.subsampling_y), m, p.color.full_range, false)
+        plane_pic!(&p, craft_vp9::Plane, u32::from(p.subsampling_x), u32::from(p.subsampling_y), m, p.color.full_range, false)
     }
 }
 
@@ -280,7 +280,7 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
             let codec: Box<dyn Codec> = match &entry.codec {
                 CodecConfig::Avc(a) => Box::new(H264::new(a.to_bytes())?),
                 CodecConfig::Hevc(c) => Box::new(Hevc::new(c.to_bytes())?),
-                CodecConfig::Vp9(_) => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
+                CodecConfig::Vp9(_) => Box::new(Vp9 { dec: craft_vp9::Decoder::new() }),
                 CodecConfig::Av1(c) => Box::new(Av1 { dec: craft_av1::Decoder::new(), config_obus: c.config_obus.clone(), primed: false }),
                 other => return Err(MediaError::Unsupported(format!("{} video", codec_name(other)))),
             };
@@ -300,7 +300,7 @@ fn open_track(bytes: &[u8]) -> Result<(Demux, Track, Box<dyn Codec>)> {
             let codec: Box<dyn Codec> = match &t.codec {
                 MkvCodec::Avc { avcc } => Box::new(H264::new(avcc.clone())?),
                 MkvCodec::Hevc { hvcc } => Box::new(Hevc::new(hvcc.clone())?),
-                MkvCodec::Vp9 { .. } => Box::new(Vp9 { dec: deckcraft_vp9::Decoder::new() }),
+                MkvCodec::Vp9 { .. } => Box::new(Vp9 { dec: craft_vp9::Decoder::new() }),
                 MkvCodec::Av1 { av1c } => Box::new(Av1 {
                     dec: craft_av1::Decoder::new(),
                     config_obus: deckcraft_isobmff::Av1Config::parse(av1c).map(|c| c.config_obus).unwrap_or_default(),
