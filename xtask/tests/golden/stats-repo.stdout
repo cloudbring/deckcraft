@@ -1,0 +1,34 @@
+crate                       files    lines #[test]  proptest!
+--------------------------------------------------------------
+deckcraft                      10     2126      44          0
+deckcraft-anim                 15     6062      95          0
+deckcraft-av1                  21    20466      10          0
+deckcraft-bitstream             2       96       3          0
+deckcraft-cli                   9     1839      39          0
+deckcraft-color                 1      831       7          0
+deckcraft-engine              101    43185     543          0
+deckcraft-fonts                 8     3413      48          0
+deckcraft-format                6     2139      40          0
+deckcraft-geom                 12     5922      64          0
+deckcraft-h264                 20     9508      54          0
+deckcraft-hevc                 17     7364      26          0
+deckcraft-isobmff               1        6       0          0
+deckcraft-matroska              1        6       0          0
+deckcraft-mcp                   8     1803      28          0
+deckcraft-media                12     2973      43          0
+deckcraft-metafile             13     7249     114          0
+deckcraft-model                15     9333     101          0
+deckcraft-ogg                   2      851      10          0
+deckcraft-opus                 16     6569      27          0
+deckcraft-pdf                   2     1447       8          0
+deckcraft-pptx                 53    20657     195          0
+deckcraft-render               33    14757     198          0
+deckcraft-text                 11     5937      95          0
+deckcraft-ui-egui             172    45589     468          0
+deckcraft-vp9                  16     7661      16          0
+deckcraft-web                   3      549       0          0
+xtask                           9     1491      35          0
+--------------------------------------------------------------
+TOTAL                         589   229829    2311          0
+
+(#[test] counts source attributes; macro-generated tests count once. Use --exact for harness counts.)

@@ -1,0 +1,34 @@
+**Weighted breadth parity: 84%** over 191 features.
+
+| Priority | Features | Done | Partial | Missing | Parity |
+|---|---|---|---|---|---|
+| P0 | 72 | 61 | 11 | 0 | 92% |
+| P1 | 65 | 45 | 16 | 4 | 82% |
+| P2 | 54 | 18 | 24 | 12 | 56% |
+
+| Area | Parity |
+|---|---|
+| Application shell | 81% |
+| Files | 76% |
+| Slides | 92% |
+| Views | 98% |
+| Masters & themes | 92% |
+| Shapes | 91% |
+| Format | 83% |
+| Arrange | 100% |
+| Text | 83% |
+| Tables | 97% |
+| Charts | 65% |
+| SmartArt | 50% |
+| Pictures | 60% |
+| Media | 67% |
+| Transitions | 100% |
+| Animations | 85% |
+| Slide show | 68% |
+| Review | 70% |
+| Draw | 50% |
+| Undo & clipboard | 100% |
+| Automation (✱) | 100% |
+| Platforms (✱) | 67% |
+
+Open P0 items: Contextual tabs (Shape Format, Picture Format, Table Design/Layout, Chart Design), Export to PDF (slides, notes pages, handouts; text layer, links, bookmarks; vector artwork pending), Format Shape pane, Font, size, bold, italic, underline, strikethrough (only Regular/Bold/Italic faces, #69), Edit chart data, Crop (and crop to shape, aspect ratio), Paste image from clipboard (fails on Windows, #1414; Linux not re-checked), Audio/video playback in the show (WMA/WMV not decodable yet), Animation pane (reorder, timing), Presenter view (notes, next slide, timer), macOS, Windows, Linux builds.

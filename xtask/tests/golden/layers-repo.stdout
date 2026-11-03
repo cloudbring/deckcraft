@@ -1,0 +1,33 @@
+Dependency layering (plan/architecture.md §3)
+
+crate                        layer          workspace deps
+deckcraft                    exempt         engine, media, ui-egui
+deckcraft-anim               L2             geom, model
+deckcraft-av1                L1             bitstream
+deckcraft-bitstream          L0 standalone  
+deckcraft-cli                exempt         engine, mcp
+deckcraft-color              L0             
+deckcraft-engine             L5             color, fonts, format, geom, media, model, pdf, pptx, render, text, anim (dev)
+deckcraft-fonts              L1             
+deckcraft-format             L2             model
+deckcraft-geom               L0             
+deckcraft-h264               L1             bitstream
+deckcraft-hevc               L1             bitstream
+deckcraft-isobmff            L1             
+deckcraft-matroska           L0 standalone  
+deckcraft-mcp                L6             engine, render
+deckcraft-media              L2             av1, h264, hevc, isobmff, matroska, ogg, opus, vp9
+deckcraft-metafile           L0             
+deckcraft-model              L1             color, geom
+deckcraft-ogg                L0 standalone  
+deckcraft-opus               L0 standalone  
+deckcraft-pdf                L4             fonts, model, render, text
+deckcraft-pptx               L3             color, geom, model, color (dev), engine (dev), geom (dev)
+deckcraft-render             L3             anim, color, fonts, geom, metafile, model, text
+deckcraft-text               L2             color, fonts, geom, model
+deckcraft-ui-egui            L6             anim, color, engine, fonts, geom, media, model, render, text
+deckcraft-vp9                L1             bitstream
+deckcraft-web                exempt         engine, ui-egui
+xtask                        exempt         
+
+OK: 28 crates, no layering violations.

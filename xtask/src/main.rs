@@ -1,16 +1,15 @@
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
 //! Workspace tooling: `cargo xtask <command>`.
 //!
-//! Pure Rust (std + serde_json). External tools (`cargo`, `curl`, `tar`) are
+//! Shared craft-xtask tasks plus DeckCraft policy and reporting. External tools are
 //! invoked through `std::process::Command`.
 
 mod assets;
 mod bench;
-mod ico;
 mod layers;
 mod parity;
 mod pdf_deps;
-mod stats;
-mod version;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
@@ -38,6 +37,9 @@ commands:
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+    let shared = craft_xtask::Configs::for_root(root());
+    let task_args = args.get(1..).unwrap_or_default();
+    let stats_args = if rest.contains(&"--exact") { vec!["--exact".into()] } else { vec![] };
     let result = match args.first().map(String::as_str) {
         Some("assets") => assets::run(&root()),
         Some("layers") => cmd_layers(),
@@ -45,13 +47,18 @@ fn main() -> ExitCode {
         Some("wasm") => cmd_wasm(),
         Some("test") => cmd_test().and_then(|()| cmd_doctest()),
         Some("ci") => cmd_ci(),
-        Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
+        Some("stats") => craft_xtask::stats::run(&craft_xtask::stats::Config { follow_symlinks: true, ..shared.stats }, &stats_args),
         Some("parity") => parity::run(&root()),
         Some("bench") => bench::run(&root(), &rest),
-        Some("ico") => ico::run(&rest),
-        Some("version") => version::run(&root(), &rest),
+        Some("ico") => craft_xtask::ico::run(&craft_xtask::ico::Config::default(), task_args),
+        Some("version") => craft_xtask::version::run(&shared.version, task_args),
         Some("-h" | "--help" | "help") | None => {
-            print!("{USAGE}");
+            print!(
+                "{USAGE}\nShared task syntax:\n  {}\n  {}\n  {}\n",
+                craft_xtask::version::cli_help(),
+                craft_xtask::stats::cli_help(),
+                craft_xtask::ico::cli_help()
+            );
             Ok(())
         }
         Some(other) => Err(format!("unknown command `{other}`\n\n{USAGE}")),
@@ -67,7 +74,9 @@ fn main() -> ExitCode {
 
 /// Workspace root (parent of the xtask crate).
 pub fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("xtask has a parent dir").to_path_buf()
+    let dir = std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from).filter(|dir| dir.join("Cargo.toml").is_file());
+    let dir = dir.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+    dir.parent().unwrap_or(Path::new(".")).to_path_buf()
 }
 
 pub fn cargo() -> Command {
@@ -110,7 +119,7 @@ fn cmd_layers() -> Result<(), String> {
             .collect();
         println!("{:<28} {:<14} {}", c.name, layers::describe(layers::classify(&c.name)), ws.join(", "));
     }
-    let violations = layers::check(&crates);
+    let violations = layers::check(&crates)?;
     println!();
     if violations.is_empty() {
         println!("OK: {} crates, no layering violations.", crates.len());

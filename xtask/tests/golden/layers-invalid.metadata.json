@@ -1,0 +1,1 @@
+{"packages": [{"name": "deckcraft-model", "dependencies": [{"name": "deckcraft-engine", "kind": null, "path": "/synthetic/engine"}, {"name": "egui", "kind": "dev"}]}, {"name": "deckcraft-engine", "dependencies": []}]}

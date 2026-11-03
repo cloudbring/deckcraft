@@ -1,0 +1,9 @@
+Dependency layering (plan/architecture.md §3)
+
+crate                        layer          workspace deps
+deckcraft-engine             L5             
+deckcraft-model              L1             engine
+
+2 violation(s):
+  - deckcraft-model (L1) -> deckcraft-engine (L5) [Normal]: may only depend on strictly lower layers
+  - deckcraft-model (L1) depends on UI crate `egui`; UI toolkits are only allowed in L6+
