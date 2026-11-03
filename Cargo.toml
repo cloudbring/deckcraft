@@ -38,7 +38,8 @@ deckcraft-vp9 = { path = "crates/vp9" }
 deckcraft-isobmff = { path = "crates/isobmff" }
 deckcraft-matroska = { path = "crates/matroska" }
 deckcraft-ogg = { path = "crates/ogg" }
-deckcraft-opus = { path = "crates/opus" }
+craft-opus = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-craft-opus" }
+craft-fft = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/48-craft-opus" }
 
 # foundation
 kurbo = { version = "0.13", features = ["serde"] }

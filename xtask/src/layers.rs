@@ -39,7 +39,6 @@ pub const TABLE: &[(&str, Class)] = &[
     ("video-budget", Class::Standalone),
     ("matroska", Class::Standalone),
     ("ogg", Class::Standalone),
-    ("opus", Class::Standalone),
     ("vp9", Class::Layer(1)),
     ("isobmff", Class::Layer(1)),
     ("media", Class::Layer(2)),

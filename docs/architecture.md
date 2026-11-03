@@ -1,6 +1,6 @@
 # DeckCraft architecture
 
-> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-11-03 · **Change:** minor (shared HEVC/H.264 dependencies and local budget layering; previous: minor, native chart payloads stored in bounded ZIP members; previous: minor, community PR wave 2026-10-14: 320 engine commands, 41 dialogs, the `metafile` crate, 1,641 tests; duplicated L2/L5/L6 rows and headers folded; previous: minor, transition frames) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
+> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-11-03 · **Change:** minor (shared Opus/FFT migration and retained Ogg demuxer; previous: minor, shared HEVC/H.264 dependencies and local budget layering; previous: minor, native chart payloads stored in bounded ZIP members; previous: minor, community PR wave 2026-10-14: 320 engine commands, 41 dialogs, the `metafile` crate, 1,641 tests; duplicated L2/L5/L6 rows and headers folded; previous: minor, transition frames) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
 
 How DeckCraft is built today. The binding rules (layering, everything is a command, thin UI, never
 break wasm, never crash) are in [AGENTS.md](../AGENTS.md) §3–§5; this document describes what
@@ -10,8 +10,12 @@ exists. 202k lines of Rust in 24 crates, 3 apps and `xtask`; 1,641 `#[test]` fun
 ## Layers
 
 H.264 and HEVC decoding use external `craft-h264` and `craft-hevc`, sharing
-`craft-bitstream`; the local `video-budget` helper remains for AV1 and VP9. See the
+`craft-bitstream`; AV1 also uses external `craft-av1`, and the local `video-budget` helper remains for VP9. See the
 [HEVC fork audit](hevc-fork-divergence.md) for outstanding shared-decoder hardening.
+
+Opus uses external `craft-opus` with `craft-fft` transforms. The standalone Ogg
+demuxer remains local, preserving its checked timing and bounded damage recovery;
+see the [Opus/Ogg fork audit](opus-fork-divergence.md).
 
 `cargo xtask layers` enforces that a crate depends only on lower layers (the table in
 `xtask/src/layers.rs`, which is authoritative; AGENTS.md §4 gives the simplified picture), and that
@@ -19,8 +23,8 @@ nothing below L6 uses egui, eframe, winit or rfd.
 
 | Layer | Crates | What they do |
 |---|---|---|
-| L0 | `geom`, `color`, `metafile`; standalone `video-budget`, `matroska`, `ogg`, `opus` | EMU/pt units, transforms, ~180 preset shape generators re-derived from ECMA-376, adjust handles, hit testing; RGB/HSL and DrawingML colour transforms; MKV/WebM and Ogg demuxers, the Opus decoder; EMF/WMF read into a neutral vector model (`metafile`) |
-| L1 | `model`, `fonts`; `vp9`, `av1`, `isobmff` | Presentation, masters, layouts, slides, shapes, text, themes, tables, charts, transitions, animations, placeholder inheritance (`resolve`); font database (craft-fonts + system) with metric-compatible substitutes for Office fonts (Carlito for Calibri, Caladea for Cambria, Liberation for Arial/Times); video decoders and the MP4/MOV demuxer |
+| L0 | `geom`, `color`, `metafile`; standalone `video-budget`, `matroska`, `ogg` | EMU/pt units, transforms, ~180 preset shape generators re-derived from ECMA-376, adjust handles, hit testing; RGB/HSL and DrawingML colour transforms; MKV/WebM and Ogg demuxers; EMF/WMF read into a neutral vector model (`metafile`) |
+| L1 | `model`, `fonts`; `vp9`, `isobmff` | Presentation, masters, layouts, slides, shapes, text, themes, tables, charts, transitions, animations, placeholder inheritance (`resolve`); font database (craft-fonts + system) with metric-compatible substitutes for Office fonts (Carlito for Calibri, Caladea for Cambria, Liberation for Arial/Times); VP9 decoding and the MP4/MOV demuxer |
 | L2 | `text`, `anim`, `format`, `media` | Shaping (HarfRust), UAX #9 bidi, UAX #14 line breaking, autofit, caret hit testing; per-shape animation state over time, the show state machine, transition frame layouts, Morph matching; `.deckcraft` (zip + JSON + media) and outline text; media probing, decoding, mixer and clock |
 | L3 | `render`, `pptx` | `vello_cpu` raster of slides, masters and layouts (fills, outlines, effects, pictures, tables, charts, Morph frames); PPTX import/export from ECMA-376 |
 | L4 | `pdf` | App-owned export layout and rendering through the shared `craft-pdf` writer |
@@ -28,8 +32,8 @@ nothing below L6 uses egui, eframe, winit or rfd.
 | L6 | `ui-egui`, `mcp` | The PowerPoint-style interface (ribbon with 10 tabs + contextual tabs, canvas, thumbnails, panes, 41 dialogs, show and presenter windows, the JSON control channel); the MCP server (JSON-RPC 2.0 over stdio), headless or connected to a running app |
 | apps | `deckcraft` (desktop: eframe/wgpu, cpal audio, logging), `deckcraft-cli` (run, render, convert, mcp, app), `deckcraft-web` (trunk; WebGPU with WebGL2 fallback), `xtask` | Exempt from layering |
 
-The media codecs and containers are clean-room pure Rust, 59k lines, shared in spirit with
-FilmCraft.
+The media codecs and containers are clean-room pure Rust. H.264, HEVC, AV1 and Opus
+use shared `craft-libs` crates; the remaining local codecs and demuxers derive from FilmCraft.
 
 ## Data model
 
@@ -85,6 +89,7 @@ macOS, Windows, Linux, FreeBSD and web artifacts.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | Opus uses shared `craft-opus`/`craft-fft`; remove the Opus workspace layer entry and retain Ogg demuxing, checked timing and bounded recovery (#48) |
 | 2026-11-03 | minor | HEVC/H.264/bitstream use shared crates; remove the HEVC workspace layer entry and retain the local AV1/VP9 budget helper (#48) |
 | 2026-10-18 | minor | Native chart payloads use referenced ZIP members and share media byte/item limits; old inline sidecars remain readable. Synthetic tests cover multi-megabyte layout, all shape owners, shared budgets, missing/corrupt members and invalid references. Scores and milestone scope unchanged |
 | 2026-10-14 | minor | Community PR wave folded: one L2/L5/L6 row each; command registry 320 (`cmd!` registrations in `cmd/*`), 41 dialogs (titled in `dialogs.rs`), 202k lines, 24 crates (`metafile` added at L0), 1,641 tests. The per-PR rows below give the counts each PR saw on its own branch |

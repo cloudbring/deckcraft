@@ -1,6 +1,6 @@
 //! Audio decoding to interleaved f32 PCM.
 //!
-//! Opus (Ogg, WebM / Matroska) uses our own decoder; everything else — MP3, AAC (M4A / MP4 / MOV /
+//! Opus (Ogg, WebM / Matroska) uses `craft-opus`; everything else — MP3, AAC (M4A / MP4 / MOV /
 //! ADTS), ALAC, FLAC, WAV, AIFF, CAF, Vorbis, PCM in MP4 / Matroska — goes through symphonia
 //! (MPL-2.0, used unmodified), with gapless trimming on.
 
@@ -94,7 +94,7 @@ fn decode_ogg_opus(bytes: &Bytes) -> Option<Result<Pcm>> {
     let stream = file.streams.get(s)?;
     Some((|| {
         let head = stream.headers.first().ok_or(MediaError::Corrupt("Opus header missing".into()))?;
-        let mut dec = deckcraft_opus::Decoder::new(head).map_err(|e| MediaError::Corrupt(e.to_string()))?;
+        let mut dec = craft_opus::Decoder::new(head).map_err(|e| MediaError::Corrupt(e.to_string()))?;
         dec.set_trim_pre_skip(true);
         let channels = dec.channels() as u16;
         let timing = deckcraft_ogg::OpusTiming::of(stream, dec.pre_skip() as u32).map_err(|e| MediaError::Corrupt(e.to_string()))?;
@@ -130,7 +130,7 @@ fn decode_mkv_opus(bytes: &Bytes) -> Option<Result<Pcm>> {
         _ => None,
     })?;
     Some((|| {
-        let mut dec = deckcraft_opus::Decoder::new(&head).map_err(|e| MediaError::Corrupt(e.to_string()))?;
+        let mut dec = craft_opus::Decoder::new(&head).map_err(|e| MediaError::Corrupt(e.to_string()))?;
         dec.set_trim_pre_skip(true);
         let channels = dec.channels() as u16;
         let mut out = Vec::new();
