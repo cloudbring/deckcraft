@@ -4,8 +4,8 @@
 //! Reading is lenient about namespaces: elements and attributes are matched by local name, which is
 //! how real-world files are best understood (prefixes are conventional and stable in practice).
 
-use std::fmt::Write as _;
-
+use craft_ooxml::dom::{self, Limits};
+use craft_ooxml::write::XmlWriter;
 use quick_xml::events::Event;
 
 use crate::PptxError;
@@ -167,35 +167,34 @@ impl El {
     }
     /// Serialize to a string (no XML declaration).
     pub fn to_xml(&self) -> String {
-        let mut s = String::new();
-        write_el(self, &mut s, 0);
-        s
+        let mut writer = XmlWriter::new();
+        write_el(self, &mut writer, 0);
+        String::from_utf8(writer.finish()).unwrap_or_default().replace("&apos;", "'")
     }
 }
 
-fn write_el(e: &El, s: &mut String, depth: usize) {
+fn write_el(e: &El, writer: &mut XmlWriter, depth: usize) {
     if depth > MAX_DEPTH {
         return;
     }
-    s.push('<');
-    s.push_str(&e.name);
+    writer.start(&e.name);
     for (k, v) in &e.attrs {
-        let _ = write!(s, " {}=\"{}\"", k, esc_attr(v));
+        writer.attr(k, v);
     }
     if e.children.is_empty() {
-        s.push_str("/>");
+        writer.empty();
         return;
     }
-    s.push('>');
+    writer.text("");
     for c in &e.children {
         match c {
-            Node::Text(t) => s.push_str(&esc(t)),
-            Node::El(c) => write_el(c, s, depth + 1),
+            Node::Text(t) => {
+                writer.text(t);
+            }
+            Node::El(c) => write_el(c, writer, depth + 1),
         }
     }
-    s.push_str("</");
-    s.push_str(&e.name);
-    s.push('>');
+    writer.end();
 }
 
 /// A parsed document: its root element and the namespace declarations on the root.
@@ -213,6 +212,64 @@ impl Doc {
 
 /// Parse XML bytes into a DOM. Bounded depth and node count; entity references are resolved.
 pub fn parse(bytes: &[u8]) -> Result<Doc, PptxError> {
+    let limits = Limits {
+        max_depth: MAX_DEPTH,
+        max_nodes: MAX_NODES,
+        max_total_bytes: MAX_XML_PART,
+        max_text_bytes: MAX_XML_PART,
+        max_attr_bytes: MAX_XML_PART,
+    };
+    match dom::parse(bytes, &limits) {
+        Ok(root) => Ok(Doc { root: from_shared(root) }),
+        Err(dom::XmlError::Limit(error)) => Err(PptxError::Xml(format!("XML limit exceeded: {error}"))),
+        Err(_) => parse_lenient(bytes),
+    }
+}
+
+const MAX_XML_PART: usize = 96 * 1024 * 1024;
+
+fn from_shared(root: dom::El) -> El {
+    enum Action {
+        Convert(dom::El),
+        Text(String),
+        Finish,
+    }
+    let mut actions = vec![Action::Convert(root)];
+    let mut stack: Vec<El> = Vec::new();
+    let mut result = None;
+    while let Some(action) = actions.pop() {
+        match action {
+            Action::Convert(el) => {
+                let name = el.prefix.map_or_else(|| el.name.clone(), |prefix| format!("{prefix}:{}", el.name));
+                stack.push(El { name, attrs: el.attrs, children: Vec::new() });
+                actions.push(Action::Finish);
+                for child in el.children.into_iter().rev() {
+                    match child {
+                        dom::Node::El(child) => actions.push(Action::Convert(child)),
+                        dom::Node::Text(text) => actions.push(Action::Text(text)),
+                    }
+                }
+            }
+            Action::Text(text) => {
+                if let Some(parent) = stack.last_mut() {
+                    parent.children.push(Node::Text(text));
+                }
+            }
+            Action::Finish => {
+                if let Some(el) = stack.pop() {
+                    if let Some(parent) = stack.last_mut() {
+                        parent.children.push(Node::El(el));
+                    } else {
+                        result = Some(el);
+                    }
+                }
+            }
+        }
+    }
+    result.unwrap_or_default()
+}
+
+pub(crate) fn parse_lenient(bytes: &[u8]) -> Result<Doc, PptxError> {
     // Skip a UTF-8 BOM; UTF-16 parts (rare) are decoded first.
     let owned;
     let bytes = if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
@@ -354,44 +411,51 @@ fn decode_utf16(bytes: &[u8]) -> String {
     }
 }
 
-/// Is `c` allowed in XML 1.0 text?
-fn xml_char(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\r') || (c >= ' ' && c != '\u{FFFE}' && c != '\u{FFFF}')
-}
-
 /// Escape text content (and drop characters XML 1.0 forbids).
+#[cfg(test)]
 pub fn esc(s: &str) -> String {
-    let mut o = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '&' => o.push_str("&amp;"),
-            '<' => o.push_str("&lt;"),
-            '>' => o.push_str("&gt;"),
-            '\r' => o.push_str("&#13;"),
-            c if xml_char(c) => o.push(c),
-            _ => {}
-        }
-    }
-    o
+    craft_ooxml::write::escape_text(s)
 }
 
 /// Escape an attribute value.
+#[cfg(test)]
 pub fn esc_attr(s: &str) -> String {
-    let mut o = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '&' => o.push_str("&amp;"),
-            '<' => o.push_str("&lt;"),
-            '>' => o.push_str("&gt;"),
-            '"' => o.push_str("&quot;"),
-            '\n' => o.push_str("&#10;"),
-            '\r' => o.push_str("&#13;"),
-            '\t' => o.push_str("&#9;"),
-            c if xml_char(c) => o.push(c),
-            _ => {}
+    craft_ooxml::write::escape_attr(s).replace("&apos;", "'")
+}
+
+#[cfg(test)]
+pub(crate) fn legacy_serialise(root: &El) -> String {
+    fn emit(el: &El, output: &mut String, depth: usize) {
+        if depth > MAX_DEPTH {
+            return;
         }
+        output.push('<');
+        output.push_str(&el.name);
+        for (key, value) in &el.attrs {
+            output.push(' ');
+            output.push_str(key);
+            output.push_str("=\"");
+            output.push_str(&esc_attr(value));
+            output.push('"');
+        }
+        if el.children.is_empty() {
+            output.push_str("/>");
+            return;
+        }
+        output.push('>');
+        for child in &el.children {
+            match child {
+                Node::El(child) => emit(child, output, depth + 1),
+                Node::Text(text) => output.push_str(&esc(text)),
+            }
+        }
+        output.push_str("</");
+        output.push_str(&el.name);
+        output.push('>');
     }
-    o
+    let mut output = String::new();
+    emit(root, &mut output, 0);
+    output
 }
 
 /// A string builder for XML parts.
@@ -444,8 +508,15 @@ impl W {
         W { s: String::new() }
     }
     fn attrs(&mut self, a: &A) {
-        for (k, v) in &a.v {
-            let _ = write!(self.s, " {}=\"{}\"", k, esc_attr(v));
+        let mut writer = XmlWriter::new();
+        writer.start("_");
+        for (key, value) in &a.v {
+            writer.attr(key, value);
+        }
+        writer.empty();
+        let bytes = writer.finish();
+        if let Ok(xml) = std::str::from_utf8(&bytes) {
+            self.s.push_str(xml.strip_prefix("<_").and_then(|s| s.strip_suffix("/>")).unwrap_or("").replace("&apos;", "'").as_str());
         }
     }
     pub fn open(&mut self, name: &str, a: A) {
@@ -480,7 +551,11 @@ impl W {
         self.empty(name, A::new().a("val", v));
     }
     pub fn text(&mut self, t: &str) {
-        self.s.push_str(&esc(t));
+        let mut writer = XmlWriter::new();
+        writer.text(t);
+        if let Ok(text) = String::from_utf8(writer.finish()) {
+            self.s.push_str(&text);
+        }
     }
     /// `<name>text</name>`
     pub fn elt(&mut self, name: &str, t: &str) {

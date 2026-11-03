@@ -821,9 +821,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-archive"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#bdc3b611acb997b1332c22fac61b1d6cf0aded66"
+dependencies = [
+ "craft-hash",
+ "flate2",
+ "thiserror 2.0.21",
+ "zip 9.1.0",
+]
+
+[[package]]
 name = "craft-fonts-build"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
+
+[[package]]
+name = "craft-hash"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#bdc3b611acb997b1332c22fac61b1d6cf0aded66"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "craft-i18n"
@@ -854,6 +873,17 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
 dependencies = [
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "craft-ooxml"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#bdc3b611acb997b1332c22fac61b1d6cf0aded66"
+dependencies = [
+ "craft-archive",
+ "quick-xml 0.41.0",
+ "thiserror 2.0.21",
+ "zip 9.1.0",
 ]
 
 [[package]]
@@ -1214,6 +1244,7 @@ dependencies = [
 name = "deckcraft-pptx"
 version = "0.15.0"
 dependencies = [
+ "craft-ooxml",
  "deckcraft-color",
  "deckcraft-engine",
  "deckcraft-geom",

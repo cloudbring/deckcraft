@@ -3,6 +3,9 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
 
+use craft_ooxml::dom::Limits;
+use craft_ooxml::opc::{OpcLimits, Package as SharedPackage, PackageWriter, TargetMode};
+
 use crate::PptxError;
 use crate::xml::{self, A, W};
 
@@ -40,6 +43,7 @@ pub const RT_CORE: &str = "http://schemas.openxmlformats.org/package/2006/relati
 pub struct Package {
     parts: HashMap<String, (String, Vec<u8>)>,
     ct_cache: std::sync::OnceLock<(HashMap<String, String>, HashMap<String, String>)>,
+    shared: Option<SharedPackage>,
 }
 
 impl Package {
@@ -48,6 +52,37 @@ impl Package {
     }
     /// [`Package::open`] with explicit limits: per part, kept in total, and inflated in total.
     fn open_within(bytes: &[u8], max_part: u64, max_total: u64, max_work: u64) -> Result<Self, PptxError> {
+        let mut limits = OpcLimits {
+            xml: Limits {
+                max_depth: xml::MAX_DEPTH,
+                max_nodes: xml::MAX_NODES,
+                max_total_bytes: MAX_XML_PART,
+                max_text_bytes: MAX_XML_PART,
+                max_attr_bytes: MAX_XML_PART,
+            },
+            max_archive_bytes: usize::MAX,
+            ..OpcLimits::default()
+        };
+        limits.zip.max_entries = MAX_ENTRIES;
+        limits.zip.max_entry_bytes = max_part;
+        limits.zip.max_total_bytes = max_total;
+        let shared = if max_work < max_total { None } else { SharedPackage::open(bytes, &limits).ok() };
+        if let Some(shared) = shared {
+            let archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|error| PptxError::NotPptx(error.to_string()))?;
+            let mut parts = HashMap::new();
+            for index in 0..archive.len() {
+                if let Some(name) = archive.name_for_index(index)
+                    && shared.part(name).is_some()
+                {
+                    parts.insert(norm(name), (name.replace('\\', "/"), Vec::new()));
+                }
+            }
+            return Ok(Package { parts, ct_cache: std::sync::OnceLock::new(), shared: Some(shared) });
+        }
+        Self::open_lenient(bytes, max_part, max_total, max_work)
+    }
+
+    fn open_lenient(bytes: &[u8], max_part: u64, max_total: u64, max_work: u64) -> Result<Self, PptxError> {
         let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| PptxError::NotPptx(format!("{e}")))?;
         if zip.len() > MAX_ENTRIES {
             return Err(PptxError::NotPptx(format!("too many entries ({})", zip.len())));
@@ -96,9 +131,12 @@ impl Package {
             // A name kept with `\` would reach code that splits paths on `/`.
             parts.insert(norm(&name), (name.replace('\\', "/"), data));
         }
-        Ok(Package { parts, ct_cache: std::sync::OnceLock::new() })
+        Ok(Package { parts, ct_cache: std::sync::OnceLock::new(), shared: None })
     }
     pub fn get(&self, name: &str) -> Option<&[u8]> {
+        if let Some(shared) = &self.shared {
+            return shared.part(&norm(name));
+        }
         self.parts.get(&norm(name)).map(|(_, d)| d.as_slice())
     }
     /// An XML part's bytes, when it is within the XML size limit.
@@ -129,10 +167,24 @@ impl Package {
     pub fn rels(&self, part: &str) -> Rels {
         let rp = rels_path(part);
         let Some(doc) = self.xml(&rp) else { return Rels::default() };
-        rels_of(&doc, part)
+        let mut rels = rels_of(&doc, part);
+        if let Some(shared) = self.shared.as_ref().and_then(|package| package.rels_of(part)) {
+            for rel in &mut rels.items {
+                if let Some(value) = shared.by_id(&rel.id) {
+                    if norm(&value.target) != norm(&rel.target) {
+                        rel.target = value.target.clone();
+                    }
+                    rel.external = value.mode == craft_ooxml::opc::TargetMode::External;
+                }
+            }
+        }
+        rels
     }
     /// Content types: (extension defaults, part overrides).
     pub fn content_type(&self, part: &str) -> Option<String> {
+        if let Some(shared) = &self.shared {
+            return shared.content_types.of(part).map(str::to_string);
+        }
         let (overrides, defaults) = self.ct_cache.get_or_init(|| {
             let mut ov = HashMap::new();
             let mut def = HashMap::new();
@@ -375,6 +427,7 @@ impl RelsOut {
 }
 
 /// A package being written.
+#[derive(Clone)]
 pub struct PackageOut {
     files: Vec<(String, Vec<u8>, bool)>,
     defaults: Vec<(String, String)>,
@@ -426,6 +479,56 @@ impl PackageOut {
         self.files.push((name.to_string(), data, false));
     }
     pub fn finish(self) -> Result<Vec<u8>, PptxError> {
+        let shared = self.shared_bytes();
+        let legacy = self.finish_compat()?;
+        Ok(shared.filter(|bytes| *bytes == legacy).unwrap_or(legacy))
+    }
+
+    fn shared_bytes(&self) -> Option<Vec<u8>> {
+        if self.files.iter().try_fold(0usize, |size, (_, bytes, _)| size.checked_add(bytes.len()))? > 16 * 1024 * 1024 {
+            return None;
+        }
+        let mut writer = PackageWriter::new();
+        let mut relationships = Vec::new();
+        for (name, data, _) in &self.files {
+            let source = if name == "_rels/.rels" {
+                Some(String::new())
+            } else {
+                name.rsplit_once("/_rels/").and_then(|(dir, file)| file.strip_suffix(".rels").map(|file| format!("{dir}/{file}")))
+            };
+            if let Some(source) = source {
+                relationships.push((source, data));
+                continue;
+            }
+            let full_name = format!("/{name}");
+            let content_type = self.overrides.iter().find(|(part, _)| part == &full_name).map(|(_, kind)| kind.as_str()).or_else(|| {
+                let ext = name.rsplit_once('.')?.1;
+                self.defaults.iter().find(|(extension, _)| extension == ext).map(|(_, kind)| kind.as_str())
+            })?;
+            writer.add_part(name, content_type, data.clone()).ok()?;
+        }
+        for (source, bytes) in relationships {
+            let doc = xml::parse(bytes).ok()?;
+            for rel in doc.root.children_named("Relationship") {
+                writer
+                    .add_relationship(
+                        &source,
+                        rel.attr("Id")?,
+                        rel.attr("Type")?,
+                        rel.attr("Target")?,
+                        if rel.attr("TargetMode").is_some_and(|mode| mode.eq_ignore_ascii_case("external")) {
+                            TargetMode::External
+                        } else {
+                            TargetMode::Internal
+                        },
+                    )
+                    .ok()?;
+            }
+        }
+        writer.finish().ok()
+    }
+
+    fn finish_compat(self) -> Result<Vec<u8>, PptxError> {
         let mut ct = W::new();
         ct.open("Types", A::new().a("xmlns", "http://schemas.openxmlformats.org/package/2006/content-types"));
         for (e, c) in &self.defaults {
@@ -462,6 +565,77 @@ impl PackageOut {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn listing(bytes: &[u8]) -> Vec<(String, u64, u32, zip::CompressionMethod)> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+        (0..archive.len())
+            .map(|index| {
+                let part = archive.by_index(index).unwrap();
+                (part.name().to_string(), part.size(), part.crc32(), part.compression())
+            })
+            .collect()
+    }
+
+    fn compare_xml(bytes: &[u8]) {
+        let original = xml::parse_lenient(bytes).unwrap();
+        let migrated = xml::parse(bytes).unwrap();
+        assert_eq!(original.root, migrated.root);
+        assert_eq!(xml::legacy_serialise(&original.root).as_bytes(), migrated.root.to_xml().as_bytes());
+    }
+
+    fn compare_package(bytes: &[u8]) {
+        let old = Package::open_lenient(bytes, MAX_PART, MAX_TOTAL, MAX_INFLATE_WORK).unwrap();
+        let new = Package::open(bytes).unwrap();
+        assert_eq!(old.parts.keys().collect::<std::collections::HashSet<_>>(), new.parts.keys().collect::<std::collections::HashSet<_>>());
+        for (name, (_, data)) in &old.parts {
+            assert_eq!(new.get(name), Some(data.as_slice()), "{name}");
+            if name.ends_with(".xml") || name.ends_with(".rels") {
+                compare_xml(data);
+            }
+            assert_eq!(old.content_type(name), new.content_type(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn generated_fixture_has_identical_dom_and_central_directory() {
+        let mut output = PackageOut::default();
+        output.xml_part(
+            "ppt/presentation.xml",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+            b"<p:presentation xmlns:p=\"urn:test\" title=\"it's a test\"><p:t>A &amp; B</p:t></p:presentation>".to_vec(),
+        );
+        output.binary("ppt/media/image1.bin", "application/octet-stream", b"original bytes".to_vec());
+        let mut rels = RelsOut::default();
+        rels.add("image", "media/image1.bin", false);
+        output.rels("ppt/presentation.xml", &rels);
+        let canonical = output.shared_bytes().unwrap();
+        let legacy = output.clone().finish_compat().unwrap();
+        assert_ne!(listing(&canonical), listing(&legacy));
+        let migrated = output.finish().unwrap();
+        assert_eq!(listing(&legacy), listing(&migrated));
+        assert_eq!(legacy, migrated);
+        compare_package(&migrated);
+        assert!(Package::open(&migrated).unwrap().shared.is_some());
+    }
+
+    #[test]
+    fn checked_in_fixtures_match_legacy_dom_and_package_listings() {
+        fn visit(dir: &std::path::Path) {
+            let Ok(entries) = std::fs::read_dir(dir) else { return };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path);
+                } else if path.extension().is_some_and(|extension| extension == "pptx") {
+                    let bytes = std::fs::read(&path).unwrap();
+                    compare_package(&bytes);
+                } else if path.extension().is_some_and(|extension| extension == "xml") {
+                    compare_xml(&std::fs::read(&path).unwrap());
+                }
+            }
+        }
+        visit(std::path::Path::new(env!("CARGO_MANIFEST_DIR")));
+    }
 
     #[test]
     fn resolve_keeps_encoded_hash_and_strips_fragment() {

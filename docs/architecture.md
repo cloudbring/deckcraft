@@ -1,6 +1,6 @@
 # DeckCraft architecture
 
-> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-10-18 · **Change:** minor (native chart payloads stored in bounded ZIP members; previous: minor, community PR wave 2026-10-14: 320 engine commands, 41 dialogs, the `metafile` crate, 1,641 tests; duplicated L2/L5/L6 rows and headers folded; previous: minor, transition frames) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
+> **Last reviewed:** 2026-11-03 · **Last updated:** 2026-11-03 · **Change:** minor (PPTX uses shared craft-ooxml for strict XML/OPC and serialization, retaining compatibility fallbacks; previous: native chart payloads stored in bounded ZIP members) · **Target:** Microsoft PowerPoint for Mac 16.113 (Microsoft 365)
 
 How DeckCraft is built today. The binding rules (layering, everything is a command, thin UI, never
 break wasm, never crash) are in [AGENTS.md](../AGENTS.md) §3–§5; this document describes what
@@ -63,7 +63,10 @@ overlays an invisible real-text layer with embedded font subsets.
 
 - **PPTX** (`crates/pptx`): lenient reader (unknown parts skipped, malformed parts logged and
   ignored, sizes and depths bounded, zip bombs capped), writer that PowerPoint opens without
-  repair. Unknown elements round-trip through `Opaque` and `raw_ext` fields.
+  repair. Shared `craft-ooxml` parses valid XML and OPC and writes XML; malformed inputs use the
+  original lenient reader, and ZIP emission retains deckcraft's ordering, compression, and
+  content-type policy until the shared `PackageWriter` supports those options. Unknown elements
+  round-trip through `Opaque` and `raw_ext` fields.
 - **Native** (`crates/format`): zip with `mimetype`, `presentation.json`, `media/<id>` and
   `chart-parts/<index>`. Chart relationships and payload references stay in the manifest; binary
   chart parts use bounded ZIP reads and share the media byte/item budgets. Earlier inline chart
@@ -81,6 +84,7 @@ macOS, Windows, Linux, FreeBSD and web artifacts.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | PPTX consumes shared `craft-ooxml` DOM, escaping and OPC reads; preserves legacy malformed-input and package-byte compatibility where the shared API differs. Parity scores unchanged |
 | 2026-10-18 | minor | Native chart payloads use referenced ZIP members and share media byte/item limits; old inline sidecars remain readable. Synthetic tests cover multi-megabyte layout, all shape owners, shared budgets, missing/corrupt members and invalid references. Scores and milestone scope unchanged |
 | 2026-10-14 | minor | Community PR wave folded: one L2/L5/L6 row each; command registry 320 (`cmd!` registrations in `cmd/*`), 41 dialogs (titled in `dialogs.rs`), 202k lines, 24 crates (`metafile` added at L0), 1,641 tests. The per-PR rows below give the counts each PR saw on its own branch |
 | 2026-10-14 | minor | Size and Position dialog (`shape.sizePosition`): position, size, rotation, scale and lock aspect in one undo step. 227 commands, 28 dialogs |
