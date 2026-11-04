@@ -1,6 +1,6 @@
 //! Open Packaging Conventions: the zip container, part names, relationships and content types.
 
-use craft_ooxml::opc::{OpcLimits, Package as OpcPackage, PackageWriter, TargetMode, WritePolicy, resolve_target};
+use craft_ooxml::opc::{OpcLimits, Package as OpcPackage, PackageWriter, TargetMode, Tolerance, WritePolicy, resolve_target};
 
 use crate::PptxError;
 use crate::xml::{self, LIMITS, fn1};
@@ -26,7 +26,13 @@ impl Package {
     pub fn open(bytes: &[u8]) -> Result<Self, PptxError> {
         let mut lim = OpcLimits { xml: LIMITS, max_archive_bytes: 2 << 30, ..OpcLimits::default() };
         (lim.zip.max_entries, lim.zip.max_entry_bytes, lim.zip.max_total_bytes) = (50_000, 512 << 20, 2 << 30);
-        OpcPackage::open(bytes, &lim).map(Self).map_err(|e| PptxError::NotPptx(e.to_string()))
+        // Tolerant read, as the pre-swap reader was: damaged entries, duplicate relationship ids, case
+        // duplicates, odd names and bad content types are skipped or repaired with a warning.
+        let pkg = OpcPackage::open_with(bytes, &lim, &Tolerance::lenient()).map_err(|e| PptxError::NotPptx(e.to_string()))?;
+        for w in pkg.warnings() {
+            log::warn!("pptx: {w}");
+        }
+        Ok(Self(pkg))
     }
     fn1! {
         pub fn get(&self, name: &str) -> Option<&[u8]> { self.0.part(&norm(name)) }

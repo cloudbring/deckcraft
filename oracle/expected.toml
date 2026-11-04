@@ -15,10 +15,12 @@ evidence = "craft-libs b78f88e crates/ooxml/src/opc.rs: PackageWriter parts/rels
 metric = "package_layout"
 
 [[expected]]
-id = "zipguard-rejects-backslash-entry-names"
-reason = """A zip entry whose name contains a backslash is refused by ZipGuard ("unsafe ZIP entry path")
-and the whole package fails to open. The old reader opened it and rewrote the name with `/`.
-Listed as an intended hardening change in artcraft-algorithms#184; it makes the file unopenable
-rather than degraded, which is a user-visible loss for packages written by buggy Windows zippers."""
-evidence = "craft-libs b78f88e crates/archive/src/zip_guard.rs l.147 (!name.contains('\\')); cloudbring/artcraft-algorithms#184 'known behaviour changes'"
-glob = "synthetic/backslash_entry_name*"
+id = "zip-entry-cap-fails-package"
+reason = """A zip entry whose declared size exceeds the 512 MiB per-part cap. The caps are the same in both
+readers (old MAX_PART 512 MiB, MAX_TOTAL 2 GiB, MAX_ENTRIES 50 000; new OpcLimits set to the same
+values), so the same part is refused. The old reader skipped that one part and opened the rest; the
+craft-archive ZipGuard treats a limit breach as a hard error (`ZIP entry exceeds byte limit`) and
+fails the package, even under Tolerance::lenient (only corrupt or unreadable entries are skipped).
+Kept as a security limit: a package that declares an over-cap entry is refused, not partly read."""
+evidence = "deckcraft 3e178d8f5 crates/pptx/src/opc.rs MAX_PART/MAX_TOTAL/MAX_ENTRIES; craft-libs 7d46713 crates/archive/src/zip_guard.rs l.100 (entry.size() > max_entry_bytes) and crates/ooxml/src/opc.rs open_with (only ZipError::Archive/Io are skipped)"
+glob = "synthetic/oversized_part*"

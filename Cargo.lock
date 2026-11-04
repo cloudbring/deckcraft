@@ -823,9 +823,9 @@ dependencies = [
 [[package]]
 name = "craft-archive"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#b78f88e73f3ce9910e442a43dc32c858c7664463"
+source = "git+https://github.com/cloudbring/craft-libs?rev=7d46713fad25280dc1a3f28e9f68fefa89aa0805#7d46713fad25280dc1a3f28e9f68fefa89aa0805"
 dependencies = [
- "craft-hash 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration)",
+ "craft-hash 0.1.0 (git+https://github.com/cloudbring/craft-libs?rev=7d46713fad25280dc1a3f28e9f68fefa89aa0805)",
  "flate2",
  "thiserror 2.0.21",
  "zip 9.1.0",
@@ -857,7 +857,7 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 [[package]]
 name = "craft-hash"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#b78f88e73f3ce9910e442a43dc32c858c7664463"
+source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
 dependencies = [
  "sha2",
 ]
@@ -865,7 +865,7 @@ dependencies = [
 [[package]]
 name = "craft-hash"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
+source = "git+https://github.com/cloudbring/craft-libs?rev=7d46713fad25280dc1a3f28e9f68fefa89aa0805#7d46713fad25280dc1a3f28e9f68fefa89aa0805"
 dependencies = [
  "sha2",
 ]
@@ -904,7 +904,7 @@ dependencies = [
 [[package]]
 name = "craft-ooxml"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#b78f88e73f3ce9910e442a43dc32c858c7664463"
+source = "git+https://github.com/cloudbring/craft-libs?rev=7d46713fad25280dc1a3f28e9f68fefa89aa0805#7d46713fad25280dc1a3f28e9f68fefa89aa0805"
 dependencies = [
  "craft-archive",
  "quick-xml 0.41.0",

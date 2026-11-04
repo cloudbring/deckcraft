@@ -65,7 +65,7 @@ craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "c5a1cbfb5f
 craft-update = { git = "https://github.com/storytold/craft-libs", version = "=0.1.0", rev = "c5a1cbfb5f9049f9270955caffb5bee5997aebf7", features = ["egui"] }
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "c5a1cbfb5f9049f9270955caffb5bee5997aebf7", version = "=0.1.0" }
 # TODO: repoint to storytold/craft-libs after upstream merge
-craft-ooxml = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/integration" }
+craft-ooxml = { git = "https://github.com/cloudbring/craft-libs", rev = "7d46713fad25280dc1a3f28e9f68fefa89aa0805" }
 i_overlay = "9"
 quick-xml = "0.41"
 zip = { version = "3", default-features = false, features = ["deflate"] }
