@@ -83,7 +83,13 @@ fn1! {
     }
     pub fn resolve(base: &str, target: &str) -> String {
         let src = if base.trim_matches('/').is_empty() { String::new() } else { format!("{}/_", base.trim_matches('/')) };
-        resolve_target(&src, &target.replace('\\', "/")).unwrap_or_default()
+        let target = target.replace('\\', "/");
+        // A fragment-only target ("#bookmark") names no part. Before the swap it resolved to the
+        // base directory; `resolve_target` would return the synthetic source `<base>/_` instead.
+        if target.starts_with('#') {
+            return base.split('/').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("/");
+        }
+        resolve_target(&src, &target).unwrap_or_default()
     }
 }
 pub fn relative(from: &str, to: &str) -> String {

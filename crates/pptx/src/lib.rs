@@ -276,6 +276,7 @@ mod xml_opc_tests {
         fn escapes() { assert_eq!((craft_ooxml::write::escape_text("a\u{b}b<\u{0}"), craft_ooxml::write::escape_attr("\"x\"\n")), ("ab&lt;".into(), "&quot;x&quot;&#10;".into())); }
         fn roundtrip_ser() { assert_eq!(parse(b"<p:sp a=\"1\"><p:t>x &amp; y</p:t><e/></p:sp>").unwrap().root.to_xml(), "<p:sp a=\"1\"><p:t>x &amp; y</p:t><e/></p:sp>"); }
         fn resolve_hash() { assert_eq!((resolve("ppt/slides", "../media/a%23b.png"), resolve("ppt/slides", "../media/a.png#frag")), ("ppt/media/a#b.png".into(), "ppt/media/a.png".into())); }
+        fn resolve_fragment_only() { assert_eq!((resolve("ppt/slides", "#_ftn1"), resolve("ppt/slides/", "#"), resolve("", "#x")), ("ppt/slides".into(), "ppt/slides".into(), String::new())); }
         fn resolve_pct() { assert_eq!(resolve("ppt/slides", "../media/a%20b.png"), "ppt/media/a b.png"); }
         fn xml_limit() { let p = Package::open(&zip_of(&[("small.xml", &[b'x'; 10])])).unwrap(); assert_eq!((p.xml_bytes("small.xml").map(<[u8]>::len), p.xml_bytes("missing.xml")), (Some(10), None)); }
         fn resolve_bs() { assert_eq!((resolve("ppt/slides", "..\\media\\image1.png"), resolve("ppt/slides", "\\ppt\\media\\a.png")), ("ppt/media/image1.png".into(), "ppt/media/a.png".into())); }

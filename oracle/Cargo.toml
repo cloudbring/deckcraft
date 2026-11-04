@@ -1,0 +1,19 @@
+[package]
+name = "deckcraft-ooxml-oracle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Old-vs-new differential for the #122 craft-ooxml swap (artcraft-algorithms#184). Test-only, not a default member."
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+deckcraft-pptx = { workspace = true }
+deckcraft-model = { workspace = true }
+# pre-swap upstream main (3e178d8f5, "Release 0.15.0"); renamed so both live in one binary
+pptx_old = { package = "deckcraft-pptx", git = "https://github.com/storytold/deckcraft", rev = "3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f" }
+craft-oracle = { git = "https://github.com/cloudbring/craft-libs", rev = "313fbe2da4b63c649e6bdfb502741008f4a97c83" }
+craft-compare = { git = "https://github.com/cloudbring/craft-libs", rev = "313fbe2da4b63c649e6bdfb502741008f4a97c83" }
+zip = { workspace = true }
+serde_json = { workspace = true }

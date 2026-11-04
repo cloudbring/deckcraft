@@ -825,10 +825,28 @@ name = "craft-archive"
 version = "0.1.0"
 source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#b78f88e73f3ce9910e442a43dc32c858c7664463"
 dependencies = [
- "craft-hash",
+ "craft-hash 0.1.0 (git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration)",
  "flate2",
  "thiserror 2.0.21",
  "zip 9.1.0",
+]
+
+[[package]]
+name = "craft-compare"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
+
+[[package]]
+name = "craft-corpus"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
+dependencies = [
+ "craft-hash 0.1.0 (git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83)",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toml",
+ "ureq",
 ]
 
 [[package]]
@@ -840,6 +858,14 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 name = "craft-hash"
 version = "0.1.0"
 source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#b78f88e73f3ce9910e442a43dc32c858c7664463"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "craft-hash"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
 dependencies = [
  "sha2",
 ]
@@ -884,6 +910,18 @@ dependencies = [
  "quick-xml 0.41.0",
  "thiserror 2.0.21",
  "zip 9.1.0",
+]
+
+[[package]]
+name = "craft-oracle"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?rev=313fbe2da4b63c649e6bdfb502741008f4a97c83#313fbe2da4b63c649e6bdfb502741008f4a97c83"
+dependencies = [
+ "craft-compare",
+ "craft-corpus",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]
@@ -1038,8 +1076,8 @@ dependencies = [
 name = "deckcraft-anim"
 version = "0.15.0"
 dependencies = [
- "deckcraft-geom",
- "deckcraft-model",
+ "deckcraft-geom 0.15.0",
+ "deckcraft-model 0.15.0",
  "serde",
 ]
 
@@ -1077,19 +1115,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "deckcraft-color"
+version = "0.15.0"
+source = "git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f#3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "deckcraft-engine"
 version = "0.15.0"
 dependencies = [
  "chrono",
  "deckcraft-anim",
- "deckcraft-color",
+ "deckcraft-color 0.15.0",
  "deckcraft-fonts",
  "deckcraft-format",
- "deckcraft-geom",
+ "deckcraft-geom 0.15.0",
  "deckcraft-media",
- "deckcraft-model",
+ "deckcraft-model 0.15.0",
  "deckcraft-pdf",
- "deckcraft-pptx",
+ "deckcraft-pptx 0.15.0",
  "deckcraft-render",
  "deckcraft-text",
  "i_overlay",
@@ -1118,7 +1164,7 @@ dependencies = [
 name = "deckcraft-format"
 version = "0.15.0"
 dependencies = [
- "deckcraft-model",
+ "deckcraft-model 0.15.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -1128,6 +1174,15 @@ dependencies = [
 [[package]]
 name = "deckcraft-geom"
 version = "0.15.0"
+dependencies = [
+ "kurbo",
+ "serde",
+]
+
+[[package]]
+name = "deckcraft-geom"
+version = "0.15.0"
+source = "git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f#3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f"
 dependencies = [
  "kurbo",
  "serde",
@@ -1206,8 +1261,21 @@ dependencies = [
 name = "deckcraft-model"
 version = "0.15.0"
 dependencies = [
- "deckcraft-color",
- "deckcraft-geom",
+ "deckcraft-color 0.15.0",
+ "deckcraft-geom 0.15.0",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "deckcraft-model"
+version = "0.15.0"
+source = "git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f#3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f"
+dependencies = [
+ "deckcraft-color 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
+ "deckcraft-geom 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -1219,6 +1287,19 @@ name = "deckcraft-ogg"
 version = "0.15.0"
 
 [[package]]
+name = "deckcraft-ooxml-oracle"
+version = "0.15.0"
+dependencies = [
+ "craft-compare",
+ "craft-oracle",
+ "deckcraft-model 0.15.0",
+ "deckcraft-pptx 0.15.0",
+ "deckcraft-pptx 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
+ "serde_json",
+ "zip 3.0.0",
+]
+
+[[package]]
 name = "deckcraft-opus"
 version = "0.15.0"
 
@@ -1228,7 +1309,7 @@ version = "0.15.0"
 dependencies = [
  "craft-pdf",
  "deckcraft-fonts",
- "deckcraft-model",
+ "deckcraft-model 0.15.0",
  "deckcraft-render",
  "deckcraft-text",
  "hayro-syntax",
@@ -1245,10 +1326,10 @@ name = "deckcraft-pptx"
 version = "0.15.0"
 dependencies = [
  "craft-ooxml",
- "deckcraft-color",
+ "deckcraft-color 0.15.0",
  "deckcraft-engine",
- "deckcraft-geom",
- "deckcraft-model",
+ "deckcraft-geom 0.15.0",
+ "deckcraft-model 0.15.0",
  "image",
  "log",
  "quick-xml 0.41.0",
@@ -1258,15 +1339,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "deckcraft-pptx"
+version = "0.15.0"
+source = "git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f#3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f"
+dependencies = [
+ "deckcraft-color 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
+ "deckcraft-geom 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
+ "deckcraft-model 0.15.0 (git+https://github.com/storytold/deckcraft?rev=3e178d8f5a59c787a6a53a7ed0f052b3e4a1489f)",
+ "log",
+ "quick-xml 0.41.0",
+ "thiserror 2.0.21",
+ "zip 3.0.0",
+]
+
+[[package]]
 name = "deckcraft-render"
 version = "0.15.0"
 dependencies = [
  "deckcraft-anim",
- "deckcraft-color",
+ "deckcraft-color 0.15.0",
  "deckcraft-fonts",
- "deckcraft-geom",
+ "deckcraft-geom 0.15.0",
  "deckcraft-metafile",
- "deckcraft-model",
+ "deckcraft-model 0.15.0",
  "deckcraft-text",
  "image",
  "kurbo",
@@ -1281,10 +1376,10 @@ name = "deckcraft-text"
 version = "0.15.0"
 dependencies = [
  "chrono",
- "deckcraft-color",
+ "deckcraft-color 0.15.0",
  "deckcraft-fonts",
- "deckcraft-geom",
- "deckcraft-model",
+ "deckcraft-geom 0.15.0",
+ "deckcraft-model 0.15.0",
  "unicode-bidi",
  "unicode-linebreak",
  "unicode-segmentation",
@@ -1297,12 +1392,12 @@ dependencies = [
  "craft-ui",
  "craft-update",
  "deckcraft-anim",
- "deckcraft-color",
+ "deckcraft-color 0.15.0",
  "deckcraft-engine",
  "deckcraft-fonts",
- "deckcraft-geom",
+ "deckcraft-geom 0.15.0",
  "deckcraft-media",
- "deckcraft-model",
+ "deckcraft-model 0.15.0",
  "deckcraft-render",
  "deckcraft-text",
  "egui",
@@ -5117,6 +5212,7 @@ dependencies = [
  "rustls-platform-verifier",
  "ureq-proto",
  "utf8-zero",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5491,6 +5587,15 @@ name = "webpki-root-certs"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e49d0e65abc00c142e8f9428da991da9f1a250c39be97459901eb12b9b49f62a"
+dependencies = [
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
 dependencies = [
  "rustls-pki-types",
 ]

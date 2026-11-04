@@ -1,0 +1,24 @@
+# Expected differences between deckcraft-pptx before (3e178d8f5) and after (168d5da7) the
+# craft-ooxml swap (#122). Verified by artcraft-algorithms#184; narrative and root causes in
+# docs/verification/ooxml-oracle.md. Every entry names the code that causes it.
+
+[[expected]]
+id = "ooxml-package-layout"
+reason = """The writer in craft-ooxml emits parts and relationships in its own canonical order and picks
+Default (by extension) over per-part Override when every part of an extension shares a type:
+entry order is sorted with [Content_Types].xml first, Relationship elements are sorted by Id as
+a string (rId10 before rId2), kept-part relationship lists therefore re-read in that order.
+OPC treats parts and relationships as unordered sets keyed by name / Id; the judge has already
+checked that the part set, every part body, every relationship (Id, Type, Target, TargetMode)
+and the effective content type of every part are equal, so only order and declaration style differ."""
+evidence = "craft-libs b78f88e crates/ooxml/src/opc.rs: PackageWriter parts/rels BTreeMap, rels.sort_by Id (l.567), PartOrder::Sorted (l.591), Default inference (l.490-505); OPC ECMA-376 Part 2 sections 9.3 and 10"
+metric = "package_layout"
+
+[[expected]]
+id = "zipguard-rejects-backslash-entry-names"
+reason = """A zip entry whose name contains a backslash is refused by ZipGuard ("unsafe ZIP entry path")
+and the whole package fails to open. The old reader opened it and rewrote the name with `/`.
+Listed as an intended hardening change in artcraft-algorithms#184; it makes the file unopenable
+rather than degraded, which is a user-visible loss for packages written by buggy Windows zippers."""
+evidence = "craft-libs b78f88e crates/archive/src/zip_guard.rs l.147 (!name.contains('\\')); cloudbring/artcraft-algorithms#184 'known behaviour changes'"
+glob = "synthetic/backslash_entry_name*"
